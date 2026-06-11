@@ -41,6 +41,7 @@ const DEFAULT_PREFIXES = [
 ];
 
 const WRAPPER_PREFIXES = new Set(["sudo", "time", "env", "nohup", "command"]);
+const JOIN_MARK = "\uE000";
 
 const RISK_RULES = [
   { label: "包含 rm -rf 删除命令", pattern: /\brm\s+(?:-[^\s]*r[^\s]*f|-?[^\s]*f[^\s]*r)[\s/]/i },
@@ -189,6 +190,7 @@ function buildSupported(lines) {
     normalizedWhitespace: 0,
     repairedBrokenTokens: 0
   };
+  const repairs = [];
 
   const parts = [];
   for (let index = 0; index < cleanedLines.length; index += 1) {
@@ -200,9 +202,9 @@ function buildSupported(lines) {
     if (value) parts.push(value);
   }
 
-  const joined = parts.join(" ");
+  const joined = parts.join(` ${JOIN_MARK} `);
   const collapsed = collapseWhitespaceOutsideQuotes(joined, stats);
-  const fixed = repairBrokenTokenWhitespace(collapsed, stats);
+  const fixed = repairBrokenTokenWhitespace(collapsed, stats, repairs);
   const risks = detectRisks(fixed);
   const notes = buildNotes(stats, original, fixed);
 
@@ -211,6 +213,7 @@ function buildSupported(lines) {
     fixed,
     unsupported: false,
     risks,
+    repairs,
     notes,
     stats
   };
@@ -224,6 +227,7 @@ function buildUnsupported(lines, reason) {
     fixed: cleaned,
     unsupported: true,
     risks: detectRisks(cleaned),
+    repairs: [],
     notes: [reason],
     stats: {
       mergedNewlines: 0,
@@ -423,33 +427,48 @@ function collapseWhitespaceOutsideQuotes(text, stats) {
   return output.trim();
 }
 
-function repairBrokenTokenWhitespace(text, stats) {
+function repairBrokenTokenWhitespace(text, stats, repairs) {
   let output = text;
+  const marker = JOIN_MARK;
 
-  output = replaceAndCount(output, /\b(\d{4})\s+-\s*(\d{2})\s*-\s*(\d{2})\b/g, "$1-$2-$3", stats);
-  output = replaceAndCount(output, /\b(\d{4})-\s+(\d{2})-\s+(\d{2})\b/g, "$1-$2-$3", stats);
-  output = replaceAndCount(output, /([A-Za-z0-9])_\s+([A-Za-z0-9])/g, "$1_$2", stats);
-  output = replaceAndCount(output, /([A-Za-z0-9])\s+_([A-Za-z0-9])/g, "$1_$2", stats);
-  output = replaceAndCount(output, /([A-Za-z0-9])\.\s+([A-Za-z0-9])/g, "$1.$2", stats);
-  output = replaceAndCount(output, /([A-Za-z0-9])\s+\.([A-Za-z0-9])/g, "$1.$2", stats);
-  output = repairQuotedPathLikeSegments(output, stats);
+  output = replaceAndTrack(output, new RegExp(`\\b(\\d{4})\\s*${marker}\\s*-\\s*(\\d{2})\\s*-\\s*(\\d{2})\\b`, "g"), "$1-$2-$3", "date", stats, repairs);
+  output = replaceAndTrack(output, new RegExp(`\\b(\\d{4})-\\s*${marker}\\s*(\\d{2})-\\s*(\\d{2})\\b`, "g"), "$1-$2-$3", "date", stats, repairs);
+  output = repairQuotedPathLikeSegments(output, stats, repairs);
+  output = replaceAndTrack(output, new RegExp(`([A-Za-z0-9])_\\s*${marker}\\s*([A-Za-z0-9])`, "g"), "$1_$2", "token", stats, repairs);
+  output = replaceAndTrack(output, new RegExp(`([A-Za-z0-9])\\s*${marker}\\s*_([A-Za-z0-9])`, "g"), "$1_$2", "token", stats, repairs);
+  output = replaceAndTrack(output, new RegExp(`([A-Za-z0-9])\\.\\s*${marker}\\s*([A-Za-z0-9])`, "g"), "$1.$2", "token", stats, repairs);
+  output = replaceAndTrack(output, new RegExp(`([A-Za-z0-9])\\s*${marker}\\s*\\.([A-Za-z0-9])`, "g"), "$1.$2", "token", stats, repairs);
+  output = output.replace(new RegExp(`\\s*${marker}\\s*`, "g"), " ");
 
   return output;
 }
 
-function replaceAndCount(text, pattern, replacement, stats) {
-  const matches = Array.from(text.matchAll(pattern));
-  const output = text.replace(pattern, replacement);
-  const count = matches.length;
-  stats.repairedBrokenTokens += count;
-  return output;
+function replaceAndTrack(text, pattern, replacement, type, stats, repairs) {
+  return text.replace(pattern, (...args) => {
+    const match = args[0];
+    const replaced = replacement.replace(/\$(\d+)/g, (_, index) => args[Number(index)] ?? "");
+    stats.repairedBrokenTokens += 1;
+    repairs.push({
+      type,
+      before: visibleJoin(match),
+      after: replaced
+    });
+    return replaced;
+  });
 }
 
-function repairQuotedPathLikeSegments(text, stats) {
+function repairQuotedPathLikeSegments(text, stats, repairs) {
   return text.replace(/(["'])([^"']+)(\1)/g, (match, open, body, close) => {
-    if (!looksPathLike(body)) return match;
+    if (!body.includes(JOIN_MARK) || !looksPathLike(body)) return match;
     const repaired = repairPathLikeBody(body);
-    if (repaired !== body) stats.repairedBrokenTokens += 1;
+    if (repaired !== body) {
+      stats.repairedBrokenTokens += 1;
+      repairs.push({
+        type: "path",
+        before: visibleJoin(body),
+        after: repaired
+      });
+    }
     return `${open}${repaired}${close}`;
   });
 }
@@ -460,12 +479,16 @@ function looksPathLike(body) {
 
 function repairPathLikeBody(body) {
   return body
-    .replace(/([/\\])\s+([A-Za-z0-9._-])/g, "$1$2")
-    .replace(/([A-Za-z0-9._-])\s+([/\\])/g, "$1$2")
-    .replace(/([A-Za-z0-9])_\s+([A-Za-z0-9])/g, "$1_$2")
-    .replace(/([A-Za-z0-9])\s+_([A-Za-z0-9])/g, "$1_$2")
-    .replace(/([A-Za-z0-9])\.\s+([A-Za-z0-9])/g, "$1.$2")
-    .replace(/([A-Za-z0-9])\s+\.([A-Za-z0-9])/g, "$1.$2");
+    .replace(new RegExp(`([/\\\\])\\s*${JOIN_MARK}\\s*([A-Za-z0-9._-])`, "g"), "$1$2")
+    .replace(new RegExp(`([A-Za-z0-9._-])\\s*${JOIN_MARK}\\s*([/\\\\])`, "g"), "$1$2")
+    .replace(new RegExp(`([A-Za-z0-9])_\\s*${JOIN_MARK}\\s*([A-Za-z0-9])`, "g"), "$1_$2")
+    .replace(new RegExp(`([A-Za-z0-9])\\s*${JOIN_MARK}\\s*_([A-Za-z0-9])`, "g"), "$1_$2")
+    .replace(new RegExp(`([A-Za-z0-9])\\.\\s*${JOIN_MARK}\\s*([A-Za-z0-9])`, "g"), "$1.$2")
+    .replace(new RegExp(`([A-Za-z0-9])\\s*${JOIN_MARK}\\s*\\.([A-Za-z0-9])`, "g"), "$1.$2");
+}
+
+function visibleJoin(text) {
+  return text.replace(new RegExp(`\\s*${JOIN_MARK}\\s*`, "g"), " ⏎ ");
 }
 
 function getHereDocMarker(line) {

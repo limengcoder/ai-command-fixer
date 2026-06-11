@@ -131,6 +131,7 @@ test("P1: repairs folded ISO dates inside quoted SQL parameters", () => {
   assert.match(result.commands[0].fixed, /"2026-06-03"/);
   assert.doesNotMatch(result.commands[0].fixed, /2026\s+-06-03/);
   assert.ok(result.commands[0].stats.repairedBrokenTokens > 0);
+  assert.deepEqual(result.commands[0].repairs.map((repair) => repair.after), ["2026-06-03"]);
 });
 
 test("P1: repairs folded filename tokens and strips macOS zsh prompts", () => {
@@ -146,4 +147,14 @@ test("P1: repairs folded filename tokens and strips macOS zsh prompts", () => {
   );
   assert.doesNotMatch(result.commands[0].fixed, /jingdong_\s+20260609/);
   assert.equal(result.commands[0].stats.removedPrompts, 1);
+});
+
+test("P1: does not repair same-line spaces that were not introduced by folding", () => {
+  const input = `python -c 'print("2026  -06-03"); print("jingdong_  20260609_temp10")'`;
+  const result = parseCommands(input);
+
+  assert.equal(result.commands.length, 1);
+  assert.match(result.commands[0].fixed, /2026  -06-03/);
+  assert.match(result.commands[0].fixed, /jingdong_  20260609_temp10/);
+  assert.equal(result.commands[0].stats.repairedBrokenTokens, 0);
 });

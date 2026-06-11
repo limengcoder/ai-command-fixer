@@ -137,6 +137,30 @@ function renderCommandCard(command, index) {
     body.appendChild(risk);
   }
 
+  if (command.repairs?.length) {
+    const repairs = document.createElement("div");
+    repairs.className = "repair-list";
+    const label = document.createElement("div");
+    label.className = "repair-label";
+    label.textContent = "自动修复点";
+    repairs.appendChild(label);
+
+    command.repairs.forEach((repair) => {
+      const item = document.createElement("div");
+      item.className = "repair-item";
+      const before = document.createElement("mark");
+      before.textContent = repair.before;
+      const arrow = document.createElement("span");
+      arrow.textContent = "->";
+      const after = document.createElement("mark");
+      after.textContent = repair.after;
+      item.append(before, arrow, after);
+      repairs.appendChild(item);
+    });
+
+    body.appendChild(repairs);
+  }
+
   if (preferences.showDiff && command.notes.length) {
     const notes = document.createElement("div");
     notes.className = "notes";
