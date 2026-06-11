@@ -158,3 +158,30 @@ test("P1: does not repair same-line spaces that were not introduced by folding",
   assert.match(result.commands[0].fixed, /jingdong_  20260609_temp10/);
   assert.equal(result.commands[0].stats.repairedBrokenTokens, 0);
 });
+
+test("P1: repairs folded SQL identifiers without joining SQL keyword boundaries", () => {
+  const input = `root@iZ2zeakc1dke7l2mrm324wZ:/home/magneto/app/geo#   cd /home/magneto/app/geo && /home/venvs/geo/bin/python -c 'from dotenv import load_dotenv; load_dotenv(".env"); from models.database import get_db; db=get_db(); rows=db.execute_query("SELECT r.stat_date,  COALESCE(r.batch_code,t.batch_code,t.trig
+gered_by,%s) batch
+_code, r.platform_
+name, COUNT(*) cnt, COUNT(DISTINCT r.
+question_id) qcnt, SUM(CASE WHEN r.
+answer_content IS NULL OR r.answer_content=%s THEN 1 ELSE 0 END) empty_cnt FROM  geo_
+raw_responses r LEFT JOIN geo_monitor_tasks t ON t.customer_id=r.customer_id AND t.task_id=r.task_id WHERE r.customer_id=(SELECT id FROM geo_customers WHERE customer_code=%s LIMIT 1) AND r.stat_date BETWEEN %s AND %s GROUP BY  r.stat_date, COALESCE(r.batch_code,t.batch_code,t.
+triggered_by,%s), r.platform_name ORDER BY r.stat_date,batch_code,r.platform_name", ("<NULL>", "", "jingdong", "2026-
+06-03", "2026-06-08", "<NULL>")); [print(r) for r in rows]'`;
+
+  const result = parseCommands(input);
+  const fixed = result.commands[0].fixed;
+
+  assert.equal(result.commands.length, 1);
+  assert.match(fixed, /t\.triggered_by,%s\) batch_code/);
+  assert.match(fixed, /r\.platform_name/);
+  assert.match(fixed, /r\.question_id/);
+  assert.match(fixed, /r\.answer_content/);
+  assert.match(fixed, /geo_raw_responses/);
+  assert.match(fixed, /"2026-06-03"/);
+  assert.doesNotMatch(fixed, /trig gered_by/);
+  assert.doesNotMatch(fixed, /batch _code/);
+  assert.doesNotMatch(fixed, /SELECTr/);
+  assert.ok(result.commands[0].repairs.some((repair) => repair.after.includes("triggered_by")));
+});

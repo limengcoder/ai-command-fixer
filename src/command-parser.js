@@ -433,6 +433,7 @@ function repairBrokenTokenWhitespace(text, stats, repairs) {
 
   output = replaceAndTrack(output, new RegExp(`\\b(\\d{4})\\s*${marker}\\s*-\\s*(\\d{2})\\s*-\\s*(\\d{2})\\b`, "g"), "$1-$2-$3", "date", stats, repairs);
   output = replaceAndTrack(output, new RegExp(`\\b(\\d{4})-\\s*${marker}\\s*(\\d{2})-\\s*(\\d{2})\\b`, "g"), "$1-$2-$3", "date", stats, repairs);
+  output = repairQuotedSqlLikeSegments(output, stats, repairs);
   output = repairQuotedPathLikeSegments(output, stats, repairs);
   output = replaceAndTrack(output, new RegExp(`([A-Za-z0-9])_\\s*${marker}\\s*([A-Za-z0-9])`, "g"), "$1_$2", "token", stats, repairs);
   output = replaceAndTrack(output, new RegExp(`([A-Za-z0-9])\\s*${marker}\\s*_([A-Za-z0-9])`, "g"), "$1_$2", "token", stats, repairs);
@@ -441,6 +442,72 @@ function repairBrokenTokenWhitespace(text, stats, repairs) {
   output = output.replace(new RegExp(`\\s*${marker}\\s*`, "g"), " ");
 
   return output;
+}
+
+function repairQuotedSqlLikeSegments(text, stats, repairs) {
+  return text.replace(/(["'])([^"']+)(\1)/g, (match, open, body, close) => {
+    if (!body.includes(JOIN_MARK) || !looksSqlLike(body)) return match;
+    const repaired = repairSqlLikeBody(body);
+    if (repaired !== body) {
+      stats.repairedBrokenTokens += 1;
+      repairs.push({
+        type: "sql",
+        before: visibleJoin(trimRepairPreview(body)),
+        after: trimRepairPreview(repaired)
+      });
+    }
+    return `${open}${repaired}${close}`;
+  });
+}
+
+function looksSqlLike(body) {
+  return /\bSELECT\b/i.test(body) && /\bFROM\b/i.test(body);
+}
+
+function repairSqlLikeBody(body) {
+  const marker = JOIN_MARK;
+  return body
+    .replace(new RegExp(`\\b([A-Za-z_][A-Za-z0-9_]*)\\s*${marker}\\s*([A-Za-z0-9_]*_[A-Za-z0-9_]*)\\b`, "g"), "$1$2")
+    .replace(new RegExp(`\\b([A-Za-z_][A-Za-z0-9_]*_)\\s*${marker}\\s*([A-Za-z0-9_]+)\\b`, "g"), "$1$2")
+    .replace(new RegExp(`\\.\\s*${marker}\\s*([A-Za-z_][A-Za-z0-9_]*)\\b`, "g"), ".$1")
+    .replace(new RegExp(`\\b([A-Za-z_][A-Za-z0-9_]*)\\.\\s*${marker}\\s*([A-Za-z_][A-Za-z0-9_]*)\\b`, "g"), "$1.$2")
+    .replace(new RegExp(`\\b([A-Za-z_][A-Za-z0-9_]{2,})\\s*${marker}\\s*([A-Za-z0-9_]{2,})\\b`, "g"), (match, left, right) => {
+      if (isSqlKeyword(left) || isSqlKeyword(right)) return match;
+      return `${left}${right}`;
+    });
+}
+
+function isSqlKeyword(value) {
+  return new Set([
+    "SELECT",
+    "FROM",
+    "WHERE",
+    "AND",
+    "OR",
+    "JOIN",
+    "LEFT",
+    "RIGHT",
+    "INNER",
+    "OUTER",
+    "GROUP",
+    "ORDER",
+    "BY",
+    "CASE",
+    "WHEN",
+    "THEN",
+    "ELSE",
+    "END",
+    "AS",
+    "ON",
+    "IN",
+    "IS",
+    "NULL",
+    "LIMIT",
+    "COUNT",
+    "SUM",
+    "MIN",
+    "MAX"
+  ]).has(String(value).toUpperCase());
 }
 
 function replaceAndTrack(text, pattern, replacement, type, stats, repairs) {
@@ -489,6 +556,16 @@ function repairPathLikeBody(body) {
 
 function visibleJoin(text) {
   return text.replace(new RegExp(`\\s*${JOIN_MARK}\\s*`, "g"), " ⏎ ");
+}
+
+function trimRepairPreview(text) {
+  const visible = visibleJoin(text).replace(/\s+/g, " ").trim();
+  if (visible.length <= 140) return visible;
+  const joinIndex = visible.indexOf("⏎");
+  if (joinIndex === -1) return `${visible.slice(0, 137)}...`;
+  const start = Math.max(0, joinIndex - 58);
+  const end = Math.min(visible.length, joinIndex + 78);
+  return `${start > 0 ? "..." : ""}${visible.slice(start, end)}${end < visible.length ? "..." : ""}`;
 }
 
 function getHereDocMarker(line) {
