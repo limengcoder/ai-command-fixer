@@ -8,8 +8,6 @@ const elements = {
   fixButton: document.querySelector("#fixButton"),
   clearButton: document.querySelector("#clearButton"),
   sampleButton: document.querySelector("#sampleButton"),
-  settingsToggle: document.querySelector("#settingsToggle"),
-  settingsPanel: document.querySelector("#settingsPanel"),
   showOriginal: document.querySelector("#showOriginal"),
   showDiff: document.querySelector("#showDiff"),
   customPrefixes: document.querySelector("#customPrefixes"),
@@ -30,7 +28,7 @@ function init() {
   syncPreferencesToForm();
   bindEvents();
   elements.resultSummary.textContent = "等待输入。";
-  elements.copyAllButton.disabled = true;
+  setCopyAllVisibility(false);
   renderStatus("粘贴内容后点击“修复命令”，结果会显示在这里。");
 }
 
@@ -45,7 +43,6 @@ function bindEvents() {
   elements.clearButton.addEventListener("click", clearInput);
   elements.sampleButton.addEventListener("click", loadExample);
   elements.copyAllButton.addEventListener("click", copyAllCommands);
-  elements.settingsToggle.addEventListener("click", toggleSettings);
   elements.showOriginal.addEventListener("change", updatePreferencesFromForm);
   elements.showDiff.addEventListener("change", updatePreferencesFromForm);
   elements.customPrefixes.addEventListener("input", updatePreferencesFromForm);
@@ -70,7 +67,7 @@ function runParse() {
 
 function renderResults(commands, summary) {
   elements.resultsList.replaceChildren();
-  elements.copyAllButton.disabled = summary.supported === 0;
+  setCopyAllVisibility(summary.supported > 0);
 
   if (summary.total === 0) {
     elements.resultSummary.textContent = "未识别到命令。";
@@ -199,6 +196,11 @@ async function copyWithFeedback(button, textOrDefaultLabel, maybeText) {
   }, 1400);
 }
 
+function setCopyAllVisibility(isVisible) {
+  elements.copyAllButton.hidden = !isVisible;
+  elements.copyAllButton.disabled = !isVisible;
+}
+
 function renderStatus(message, tone = "") {
   elements.statusMessage.textContent = message;
   elements.statusMessage.className = ["status", tone].filter(Boolean).join(" ");
@@ -209,7 +211,7 @@ function clearInput() {
   latestCommands = [];
   elements.resultsList.replaceChildren();
   elements.resultSummary.textContent = "等待输入。";
-  elements.copyAllButton.disabled = true;
+  setCopyAllVisibility(false);
   renderStatus("已清空输入。浏览器不会保存刚才的命令内容。");
   elements.input.focus();
 }
@@ -218,12 +220,6 @@ function loadExample() {
   elements.input.value = EXAMPLE_INPUT;
   runParse();
   elements.input.focus();
-}
-
-function toggleSettings() {
-  const willOpen = elements.settingsPanel.hidden;
-  elements.settingsPanel.hidden = !willOpen;
-  elements.settingsToggle.setAttribute("aria-expanded", String(willOpen));
 }
 
 function syncPreferencesToForm() {

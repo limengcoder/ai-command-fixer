@@ -23,18 +23,40 @@
               <h2 id="input-title">输入</h2>
               <p>粘贴整段 AI 回复、单条命令或多条命令。</p>
             </div>
-            <button class="icon-button" id="settingsToggle" type="button" aria-expanded="false" aria-controls="settingsPanel" title="偏好设置">设置</button>
           </div>
 
           <textarea id="inputText" spellcheck="false" placeholder="粘贴 AI 回复或命令，例如 Python -c、curl JSON、docker 命令..."></textarea>
 
           <div class="actions">
             <button class="primary" id="fixButton" type="button">修复命令</button>
-            <button id="sampleButton" type="button">加载示例</button>
-            <button id="clearButton" type="button">清空</button>
+            <div class="secondary-actions" aria-label="次要操作">
+              <button class="link-button" id="sampleButton" type="button">试用示例</button>
+              <button class="link-button" id="clearButton" type="button">清空</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel result-panel" aria-labelledby="result-title">
+          <div class="panel-header result-toolbar">
+            <div>
+              <h2 id="result-title">结果</h2>
+              <p id="resultSummary">等待输入。</p>
+            </div>
+            <button id="copyAllButton" type="button" hidden>复制全部</button>
           </div>
 
-          <aside class="settings" id="settingsPanel" hidden>
+          <div class="status" id="statusMessage" role="status">
+            粘贴内容后点击“修复命令”，结果会显示在这里。
+          </div>
+
+          <div class="results" id="resultsList" aria-live="polite"></div>
+        </section>
+      </section>
+
+      <section class="settings-section" aria-label="偏好设置">
+        <details class="settings" id="settingsPanel">
+          <summary>设置</summary>
+          <div class="settings-body">
             <div class="setting-row">
               <label for="showOriginal">
                 <span>显示原始片段</span>
@@ -53,25 +75,9 @@
               <span>自定义命令前缀</span>
               <textarea id="customPrefixes" spellcheck="false" rows="3" placeholder="每行一个，例如：uv&#10;terraform&#10;ansible-playbook"></textarea>
             </label>
-            <button id="resetPrefsButton" type="button">清除本地偏好</button>
-          </aside>
-        </section>
-
-        <section class="panel result-panel" aria-labelledby="result-title">
-          <div class="panel-header result-toolbar">
-            <div>
-              <h2 id="result-title">结果</h2>
-              <p id="resultSummary">等待输入。</p>
-            </div>
-            <button id="copyAllButton" type="button" disabled>复制全部</button>
+            <button class="subtle-button" id="resetPrefsButton" type="button">清除本地偏好</button>
           </div>
-
-          <div class="status" id="statusMessage" role="status">
-            粘贴内容后点击“修复命令”，结果会显示在这里。
-          </div>
-
-          <div class="results" id="resultsList" aria-live="polite"></div>
-        </section>
+        </details>
       </section>
     </main>
 

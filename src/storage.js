@@ -1,8 +1,8 @@
-const STORAGE_KEY = "ai-command-fixer:prefs:v1";
+const STORAGE_KEY = "ai-command-fixer:prefs:v2";
 
 export const DEFAULT_PREFERENCES = Object.freeze({
-  showDiff: true,
-  showOriginal: true,
+  showDiff: false,
+  showOriginal: false,
   customPrefixes: []
 });
 
