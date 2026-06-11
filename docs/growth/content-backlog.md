@@ -194,6 +194,13 @@ README structure:
 - Contributing / feedback guidance.
 - License.
 
+开源决策：
+
+- 项目准备开源。
+- 默认采用 MIT License。
+- README 第一版采用中英并行结构。
+- 后续建议补充 issue 模板、bug report 模板、feature request 模板和安全反馈说明。
+
 README feature bullets:
 
 - Paste a full AI response or a single command.
@@ -331,8 +338,8 @@ Product Hunt：
 - Explore team-shared rules without storing command contents by default.
 ```
 
-## 10. 产品经理待确认问题
+## 10. 已确认发布决策
 
-1. 第一版公开发布时，主站语言优先中文、英文，还是中英并行？
-2. 项目是否准备开源？如果开源，需要确认 license、README 风格和 GitHub issue 模板。
-3. 是否允许接入隐私友好的匿名统计？如果允许，需要确认只记录行为计数，不记录任何命令内容。
+1. 第一版公开发布采用中英并行。
+2. 项目准备开源，默认采用 MIT License。
+3. 允许接入隐私友好的匿名统计，并支持 GSC、GA 等主流工具；统计只能记录行为计数和区间化指标，不能记录任何命令内容或命令派生文本。

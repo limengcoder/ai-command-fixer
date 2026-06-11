@@ -13,6 +13,16 @@ MVP 推荐优先使用 Vercel 或 Cloudflare Pages：
 
 如果只需要最简单的公开静态站，也可以使用 GitHub Pages。客户私有化或内网使用时，可以交付静态文件给客户自己的 Nginx、对象存储、CDN 或内网静态服务器。
 
+## 当前仓库状态
+
+当前项目只在本地 Git 仓库中提交，路径为：
+
+```text
+/Users/wangxb/Documents/产品思维提升
+```
+
+当前没有配置远程仓库。后续如果开源，需要先创建 GitHub 仓库，再添加 remote 并推送。
+
 ## Vercel
 
 1. 将仓库连接到 Vercel。
@@ -52,7 +62,7 @@ MVP 推荐优先使用 Vercel 或 Cloudflare Pages：
 npm start
 ```
 
-然后访问 `http://localhost:4173`。
+然后访问 `http://127.0.0.1:4173`。
 
 ## 隐私说明
 
@@ -67,6 +77,18 @@ npm start
 - 工具只做格式修复和风险提示，不保证命令安全。
 
 不要设计会把命令写入 URL 参数的分享功能。即使工具没有后端，静态托管服务仍可能记录 URL、IP 和 User-Agent。
+
+## 统计与站长工具
+
+已确认允许接入隐私友好的匿名统计，并支持主流运营工具：
+
+- Google Search Console
+- Bing Webmaster Tools
+- Google Analytics
+- Cloudflare Web Analytics
+- Plausible / Umami
+
+接入边界见 [统计与站长工具接入规范](analytics.md)。任何工具都不能采集原始命令、修复后命令、命令 hash、服务器路径、数据库名、token、剪贴板内容或命令历史。
 
 ## 缓存建议
 
@@ -109,6 +131,7 @@ npm start
 - 没有服务端环境变量。
 - 没有把命令写入 URL。
 - 没有第三方分析脚本默认采集输入内容。
+- 如接入 GSC、GA 等工具，事件参数不能包含命令内容或命令派生文本。
 - 没有把原始命令、修复命令、历史记录写入 localStorage。
 - 仅保存偏好、自定义规则和 UI 设置。
 - 构建产物可直接作为静态文件访问。

@@ -15,7 +15,7 @@
 - 建议指标体系，但不采集命令内容。
 - 根据用户反馈、搜索词和社区问题，向产品经理提交产品改进建议。
 
-当前阶段只做准备工作，不要求马上改页面、上线博客或接入分析工具。
+当前阶段只做准备工作，不要求马上改页面或上线博客。用户已确认第一版公开发布采用中英并行、项目准备开源，并允许接入隐私友好的匿名统计与主流站长/分析工具。
 
 ## 2. 参考观察
 
@@ -49,13 +49,16 @@
 
 发布资产：
 
-- GitHub README 草稿。
+- GitHub README 草稿与开源仓库基础物料。
+- MIT License。
+- GitHub issue 模板与反馈指南。
 - Product Hunt 发布文案。
 - X/Twitter、即刻、V2EX、掘金、Hacker News、Reddit 发布素材。
 - 中英文 FAQ。
 - Changelog 初版。
 - Roadmap 初版。
 - 基础截图：空状态、输入示例、识别多条命令、风险提示、设置区。
+- 统计接入规范：GSC、Bing Webmaster Tools、GA、Cloudflare Web Analytics 等只允许采集匿名行为，不允许采集命令内容。
 
 ## 4. 发布时工作
 
@@ -114,6 +117,7 @@
 - 增加 Open Graph 和 Twitter Card 文案与截图。
 - 增加 `robots.txt`、`sitemap.xml`、canonical URL。
 - 发布后接入 Google Search Console 和 Bing Webmaster Tools。
+- 如接入 Google Analytics，只发送匿名行为事件和区间化指标，不发送命令内容、修复结果、命令 hash、自定义前缀文本或剪贴板内容。
 
 关键词方向：
 
@@ -250,10 +254,12 @@ MVP 页面：
 
 ## 11. 中英双语与 i18n 建议
 
+已确认策略：第一版公开发布采用中英并行。
+
 阶段建议：
 
-- MVP：界面先保持一种主语言，文档和发布物料先准备中英文。
-- 第一次公开发布：提供中英文 README、FAQ、发布贴。
+- MVP：当前工具可先保持单页工作台结构，但公开发布所需的 README、FAQ、发布贴、SEO 标题、meta description 需要中英并行。
+- 第一次公开发布：提供中英文 README、FAQ、发布贴和首页核心文案。
 - 后续版本：将 UI 文案抽离为 `zh-CN` 和 `en` 字典，再做语言切换。
 
 语言策略：
@@ -297,6 +303,8 @@ i18n 注意事项：
 
 增长指标必须尊重隐私承诺，不能采集命令内容。
 
+已确认策略：允许接入隐私友好的匿名统计，并支持 GSC、GA 等主流工具；具体边界见 `docs/analytics.md`。
+
 可以采集的匿名事件：
 
 - 页面访问量。
@@ -321,8 +329,8 @@ i18n 注意事项：
 
 分析工具建议：
 
-- MVP 可以先不接任何第三方分析。
-- 如果需要基础统计，优先选隐私友好的 Plausible、Umami 自托管或 Cloudflare Web Analytics。
+- MVP 可以先接入 GSC / Bing Webmaster Tools 这类站点级工具。
+- 如需行为统计，可选 Google Analytics、Plausible、Umami 自托管或 Cloudflare Web Analytics，但必须按 `docs/analytics.md` 的事件边界实现。
 - 默认不接入会记录输入内容的 session replay、heatmap、fullstory 类工具。
 - 如果使用错误监控，必须过滤所有用户输入和结果内容。
 
