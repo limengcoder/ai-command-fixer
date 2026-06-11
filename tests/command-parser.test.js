@@ -120,3 +120,30 @@ test("P1: detects SQL destructive statements inside Python command", () => {
   assert.equal(result.commands.length, 1);
   assert.ok(result.commands[0].risks.some((risk) => risk.includes("DROP DATABASE")));
 });
+
+test("P1: repairs folded ISO dates inside quoted SQL parameters", () => {
+  const input = `cd /home/magneto/app/geo && /home/venvs/geo/bin/python -c 'from dotenv import load_dotenv; load_dotenv(".env"); from models.database import get_db; db=get_db(); rows=db.execute_query("SELECT * FROM geo_raw_responses WHERE stat_date BETWEEN %s AND %s", ("2026
+  -06-03", "2026-06-08")); [print(r) for r in rows]'`;
+
+  const result = parseCommands(input);
+
+  assert.equal(result.commands.length, 1);
+  assert.match(result.commands[0].fixed, /"2026-06-03"/);
+  assert.doesNotMatch(result.commands[0].fixed, /2026\s+-06-03/);
+  assert.ok(result.commands[0].stats.repairedBrokenTokens > 0);
+});
+
+test("P1: repairs folded filename tokens and strips macOS zsh prompts", () => {
+  const input = `wangxb@bogon magneto %   cd /Users/wangxb/Project/magneto && git fetch origin feature/geo_project_dynamic && git restore --source=FETCH_HEAD --worktree -- "app/geo/output/jingdong_batch_reports/jingdong_618_activity_analysis_20260609_jingdong_
+  20260609_temp10_national_10x_pipeline.xlsx"`;
+
+  const result = parseCommands(input);
+
+  assert.equal(result.commands.length, 1);
+  assert.match(
+    result.commands[0].fixed,
+    /jingdong_618_activity_analysis_20260609_jingdong_20260609_temp10_national_10x_pipeline\.xlsx/
+  );
+  assert.doesNotMatch(result.commands[0].fixed, /jingdong_\s+20260609/);
+  assert.equal(result.commands[0].stats.removedPrompts, 1);
+});

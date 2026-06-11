@@ -157,6 +157,7 @@ function preprocessLines(text) {
 function stripShellPrompt(line) {
   const patterns = [
     /^\s*(?:\[[^\]]+\]\s*)?[\w.-]+@[\w.-]+(?::[^\n#$%>]*)?[#$%>]\s+/,
+    /^\s*[\w.-]+@[\w.-]+\s+[^#$%>\n]+[#$%>]\s+/,
     /^\s*(?:\$|#|%)\s+/
   ];
 
@@ -185,7 +186,8 @@ function buildSupported(lines) {
     mergedNewlines: Math.max(0, lines.length - 1),
     removedContinuations: 0,
     removedPrompts: lines.filter((line) => line.promptRemoved).length,
-    normalizedWhitespace: 0
+    normalizedWhitespace: 0,
+    repairedBrokenTokens: 0
   };
 
   const parts = [];
@@ -199,7 +201,8 @@ function buildSupported(lines) {
   }
 
   const joined = parts.join(" ");
-  const fixed = collapseWhitespaceOutsideQuotes(joined, stats);
+  const collapsed = collapseWhitespaceOutsideQuotes(joined, stats);
+  const fixed = repairBrokenTokenWhitespace(collapsed, stats);
   const risks = detectRisks(fixed);
   const notes = buildNotes(stats, original, fixed);
 
@@ -226,7 +229,8 @@ function buildUnsupported(lines, reason) {
       mergedNewlines: 0,
       removedContinuations: 0,
       removedPrompts: lines.filter((line) => line.promptRemoved).length,
-      normalizedWhitespace: 0
+      normalizedWhitespace: 0,
+      repairedBrokenTokens: 0
     }
   };
 }
@@ -237,6 +241,7 @@ function buildNotes(stats, original, fixed) {
   if (stats.removedContinuations > 0) notes.push(`移除 ${stats.removedContinuations} 处反斜杠续行。`);
   if (stats.removedPrompts > 0) notes.push(`移除 ${stats.removedPrompts} 处终端提示符。`);
   if (stats.normalizedWhitespace > 0) notes.push(`归一 ${stats.normalizedWhitespace} 处多余空白。`);
+  if (stats.repairedBrokenTokens > 0) notes.push(`修复 ${stats.repairedBrokenTokens} 处日期、路径或文件名断点。`);
   if (notes.length === 0 && original === fixed) notes.push("未发现需要修复的折行。");
   return notes;
 }
@@ -416,6 +421,51 @@ function collapseWhitespaceOutsideQuotes(text, stats) {
   }
 
   return output.trim();
+}
+
+function repairBrokenTokenWhitespace(text, stats) {
+  let output = text;
+
+  output = replaceAndCount(output, /\b(\d{4})\s+-\s*(\d{2})\s*-\s*(\d{2})\b/g, "$1-$2-$3", stats);
+  output = replaceAndCount(output, /\b(\d{4})-\s+(\d{2})-\s+(\d{2})\b/g, "$1-$2-$3", stats);
+  output = replaceAndCount(output, /([A-Za-z0-9])_\s+([A-Za-z0-9])/g, "$1_$2", stats);
+  output = replaceAndCount(output, /([A-Za-z0-9])\s+_([A-Za-z0-9])/g, "$1_$2", stats);
+  output = replaceAndCount(output, /([A-Za-z0-9])\.\s+([A-Za-z0-9])/g, "$1.$2", stats);
+  output = replaceAndCount(output, /([A-Za-z0-9])\s+\.([A-Za-z0-9])/g, "$1.$2", stats);
+  output = repairQuotedPathLikeSegments(output, stats);
+
+  return output;
+}
+
+function replaceAndCount(text, pattern, replacement, stats) {
+  const matches = Array.from(text.matchAll(pattern));
+  const output = text.replace(pattern, replacement);
+  const count = matches.length;
+  stats.repairedBrokenTokens += count;
+  return output;
+}
+
+function repairQuotedPathLikeSegments(text, stats) {
+  return text.replace(/(["'])([^"']+)(\1)/g, (match, open, body, close) => {
+    if (!looksPathLike(body)) return match;
+    const repaired = repairPathLikeBody(body);
+    if (repaired !== body) stats.repairedBrokenTokens += 1;
+    return `${open}${repaired}${close}`;
+  });
+}
+
+function looksPathLike(body) {
+  return /[\\/]/.test(body) && /(?:\.[A-Za-z0-9]{1,8}\b|[_/\\][A-Za-z0-9])/.test(body);
+}
+
+function repairPathLikeBody(body) {
+  return body
+    .replace(/([/\\])\s+([A-Za-z0-9._-])/g, "$1$2")
+    .replace(/([A-Za-z0-9._-])\s+([/\\])/g, "$1$2")
+    .replace(/([A-Za-z0-9])_\s+([A-Za-z0-9])/g, "$1_$2")
+    .replace(/([A-Za-z0-9])\s+_([A-Za-z0-9])/g, "$1_$2")
+    .replace(/([A-Za-z0-9])\.\s+([A-Za-z0-9])/g, "$1.$2")
+    .replace(/([A-Za-z0-9])\s+\.([A-Za-z0-9])/g, "$1.$2");
 }
 
 function getHereDocMarker(line) {
