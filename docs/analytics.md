@@ -6,7 +6,7 @@
 
 - 允许接入隐私友好的匿名统计。
 - 支持主流运营工具接入，包括 Google Search Console、Bing Webmaster Tools、Google Analytics 等。
-- 任何统计工具都不能采集原始命令、修复后命令、命令片段 hash、服务器路径、数据库名、域名、IP、token、剪贴板内容或命令历史。
+- 任何统计工具都不能采集原始命令、修复后命令、暂存命令、命令片段 hash、服务器路径、数据库名、域名、IP、token、剪贴板内容或命令历史。
 - 统计能力必须服务于发布、SEO、GEO/AI 搜索优化和基础产品改进，而不是追踪个人命令内容。
 
 ## 2. 工具分类
@@ -67,12 +67,15 @@ Plausible / Umami：
 - `language_selected`: `zh-CN` 或 `en`
 - `example_loaded`
 - `fix_clicked`
-- `commands_detected_bucket`: `0`、`1`、`2-5`、`6+`
-- `supported_commands_bucket`: `0`、`1`、`2-5`、`6+`
+- `repair_result_status`: `empty`、`single_supported`、`unsupported`
 - `unsupported_detected`: `true` / `false`
 - `risk_hint_shown`: `true` / `false`
 - `copy_single_clicked`
 - `copy_all_clicked`
+- `stash_clicked`
+- `stash_result_status`: `saved`、`limit_reached`、`expired_removed`
+- `stash_ttl_selected`: `1h`、`24h`、`7d`
+- `stash_count_bucket`: `0`、`1`、`2-5`、`6-20`
 - `settings_opened`
 - `preferences_cleared`
 - `custom_prefix_count_bucket`: `0`、`1`、`2-5`、`6+`
@@ -83,6 +86,7 @@ Plausible / Umami：
 
 - 原始输入全文。
 - 修复后的命令。
+- 暂存命令。
 - 原始片段。
 - 命令 hash。
 - 命令长度的精确值。
@@ -93,6 +97,7 @@ Plausible / Umami：
 - token、key、secret、password。
 - 用户剪贴板内容。
 - 浏览器本地存储中的自定义前缀文本。
+ - 浏览器本地存储中的暂存命令文本。
 
 如果需要统计数量，必须使用区间，而不是精确内容或精确长度。
 
@@ -131,8 +136,7 @@ custom_prefix=/home/venvs/geo/bin/python
 
 - 页面 URL 不包含命令内容。
 - 源码中没有把 textarea value 传给统计 SDK。
-- 统计事件参数不包含用户输入、修复结果或自定义前缀文本。
-- localStorage 只保存偏好和自定义规则，不保存历史。
+- 统计事件参数不包含用户输入、修复结果、暂存命令或自定义前缀文本。
+- localStorage 只保存偏好、自定义规则和用户主动暂存的修复后命令；默认不保存历史。
 - README、FAQ、隐私说明中的承诺与统计实现一致。
 - GSC / GA / Bing 的接入说明进入发布文档。
-

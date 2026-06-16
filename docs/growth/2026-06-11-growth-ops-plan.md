@@ -36,7 +36,7 @@
 - 一句话定位：Fix broken AI-generated commands into copy-ready one-line commands.
 - 中文定位：把 AI 回复里被折断的命令，修复成可复制的单行命令。
 - 三个核心卖点：本地处理、不上传命令、不保存历史。
-- 三个能力卖点：多命令识别、复制全部、风险提示。
+- 三个能力卖点：默认单命令修复、自动修复点核对、风险提示。
 - 一个真实前后对比样例：Python `-c` + SQL 被折断后修复为单行。
 - 一个明确限制：暂不自动合并 `<<EOF` / here-doc / 复杂多行脚本。
 
@@ -57,7 +57,7 @@
 - 中英文 FAQ。
 - Changelog 初版。
 - Roadmap 初版。
-- 基础截图：空状态、输入示例、识别多条命令、风险提示、设置区。
+- 基础截图：空状态、输入示例、长命令修复结果、自动修复点、风险提示、设置区。
 - 统计接入规范：GSC、Bing Webmaster Tools、GA、Cloudflare Web Analytics 等只允许采集匿名行为，不允许采集命令内容。
 
 ## 4. 发布时工作
@@ -113,7 +113,7 @@
   - 中文：`粘贴 AI 生成的终端命令，自动修复意外折行，输出可复制的单行命令。浏览器本地处理，不上传，不保存命令历史。`
 - H1 聚焦真实需求，不写空泛口号。
 - 首屏必须包含“paste AI command / fix line breaks / copy one-line command / local browser processing”等关键词。
-- FAQ 使用问答结构，覆盖隐私、here-doc、Python `-c`、SQL、复制全部、多命令。
+- FAQ 使用问答结构，覆盖隐私、here-doc、Python `-c`、SQL、默认单命令、多命令后续探索。
 - 增加 Open Graph 和 Twitter Card 文案与截图。
 - 增加 `robots.txt`、`sitemap.xml`、canonical URL。
 - 发布后接入 Google Search Console 和 Bing Webmaster Tools。
@@ -205,9 +205,9 @@ MVP 页面：
 截图素材：
 
 - 空状态。
-- 粘贴 AI 回复后识别 2 条命令。
+- 粘贴 AI 回复或长命令后显示修复结果。
 - Python `-c` 折行修复。
-- 复制全部状态。
+- 单条复制与点击结果框复制状态。
 - here-doc 不支持状态。
 - 高风险命令提示。
 - 偏好设置和自定义前缀。
@@ -241,6 +241,7 @@ MVP 页面：
 - 它会保存命令历史吗？
 - 为什么不直接把所有换行替换成空格？
 - 支持多条命令吗？
+- 为什么默认按单命令处理？
 - 支持 Python `-c` 和 SQL 查询吗？
 - 支持反斜杠续行吗？
 - 支持 JSON 参数吗？
@@ -311,10 +312,9 @@ i18n 注意事项：
 - 语言选择。
 - 点击加载示例。
 - 点击修复按钮。
-- 识别到的命令数量区间，例如 `0`、`1`、`2-5`、`6+`。
+- 修复结果状态，例如 `empty`、`single_supported`、`unsupported`。
 - 修复类型计数区间，例如合并换行、反斜杠续行、here-doc 不支持、高风险提示。
 - 点击复制单条。
-- 点击复制全部。
 - 打开设置。
 - 清除本地偏好。
 

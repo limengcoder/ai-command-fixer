@@ -9,7 +9,7 @@
 | 优先级 | 中文标题 | English title | 目标 |
 |---|---|---|---|
 | P0 | 为什么 AI 生成的命令复制到终端会失败？ | Why AI-generated commands break when copied into terminals | 教育核心问题，解释换行、缩进、引号、SQL 折行 |
-| P0 | 为什么不能简单把换行替换成空格？ | Why replacing newlines with spaces is not enough for shell commands | 说明产品差异，强调状态机规则和多命令边界 |
+| P0 | 为什么不能简单把换行替换成空格？ | Why replacing newlines with spaces is not enough for shell commands | 说明产品差异，强调状态机规则和高风险断点 |
 | P0 | AI Command Fixer 是什么？ | What is AI Command Fixer? | 产品介绍页，可复用到 README、Product Hunt、官网 |
 | P0 | 隐私说明：你的命令不会离开浏览器 | Privacy: Your commands never leave the browser | 建立信任，解释 localStorage 只保存偏好 |
 
@@ -47,8 +47,8 @@
 ### 使用方式
 
 - 我可以粘贴整段 AI 回复吗？
-- 支持一次识别多条命令吗？
-- 复制全部会如何分隔多条命令？
+- 为什么默认按单命令处理？
+- 如果粘贴了多条命令怎么办？
 - 支持 Python `-c` 命令吗？
 - 支持 SQL 查询折行吗？
 - 支持 JSON 参数吗？
@@ -91,7 +91,7 @@
 
 副标题候选：
 
-- 粘贴整段 AI 回复，自动识别多条命令，修复换行和续行缩进，一键复制可执行的单行命令。
+- 粘贴整段 AI 回复或一条长命令，修复换行和续行缩进，一键复制可核对的单行命令。
 - 所有处理都在浏览器本地完成，不上传命令，不保存命令历史。
 - 不是 ShellCheck，也不是命令解释器；它只专注解决 AI 回复里的命令折行问题。
 
@@ -100,8 +100,8 @@
 - 本地处理
 - 不上传命令
 - 不保存历史
-- 多命令识别
-- 复制全部
+- 默认单命令
+- 修复点核对
 - 风险提示
 - here-doc 暂不自动处理
 
@@ -122,7 +122,7 @@ Headline candidates:
 
 Subheadline candidates:
 
-- Paste an AI response, detect multiple terminal commands, repair accidental line breaks, and copy ready-to-use one-line commands.
+- Paste an AI response or one long command, repair accidental line breaks, and copy a reviewable one-line command.
 - Runs entirely in your browser. No uploads. No command history.
 - Not a shell linter, not a command explainer. Just a focused fixer for broken AI command formatting.
 
@@ -131,8 +131,8 @@ Benefit phrases:
 - Local-first
 - No uploads
 - No command history
-- Multi-command detection
-- Copy all
+- Single-command-first
+- Reviewable repair points
 - Risk hints
 - here-doc not auto-collapsed
 
@@ -157,7 +157,7 @@ Tagline options:
 
 Description draft:
 
-AI Command Fixer fixes accidental line breaks in AI-generated terminal commands. Paste a whole AI response, detect multiple commands, repair broken one-liners, and copy them back to your terminal. Everything runs locally in your browser. No uploads, no login, no command history.
+AI Command Fixer fixes accidental line breaks in AI-generated terminal commands. Paste a whole AI response or one long command, repair broken one-liners, review the repair points, and copy the result back to your terminal. Everything runs locally in your browser. No uploads, no login, no command history.
 
 Maker comment outline:
 
@@ -170,9 +170,9 @@ Maker comment outline:
 
 Gallery screenshot list:
 
-- Paste AI response and detect two commands.
+- Paste AI response or one long command.
 - Python `-c` SQL line break fixed.
-- Copy all multiple commands.
+- Per-result copy and click-result-to-copy.
 - Risk hint on dangerous command.
 - Privacy badges: local-first, no uploads, no history.
 
@@ -204,9 +204,9 @@ README structure:
 README feature bullets:
 
 - Paste a full AI response or a single command.
-- Detect multiple ordinary terminal commands.
+- Treat input as one long command by default.
 - Repair accidental line breaks and backslash continuations.
-- Copy individual commands or copy all.
+- Copy with a per-result button or by clicking the result block.
 - Detect unsupported here-doc structures.
 - Show risk hints for dangerous commands.
 - Store preferences locally without saving command history.
@@ -240,7 +240,7 @@ GitHub topics:
 
 最近经常遇到一个很烦的问题：AI 给的服务器命令本来应该一行执行，但聊天界面把 Python `-c`、SQL、JSON 参数折成了多行，复制到终端就直接报错。
 
-我做了一个小工具：AI Command Fixer。粘贴整段 AI 回复，自动识别多条命令，修复意外折行，然后复制回终端。
+我做了一个小工具：AI Command Fixer。粘贴整段 AI 回复或一条长命令，修复意外折行，核对修复点，然后复制回终端。
 
 重点是：浏览器本地处理，不上传命令，不保存历史。
 
@@ -250,7 +250,7 @@ GitHub topics:
 
 AI Command Fixer 只解决一个小但高频的问题：把 AI 回复里被意外折断的命令，修成可复制的一行。
 
-支持多命令识别、复制全部、风险提示。本地运行，不上传命令。
+默认单命令处理，支持修复点核对和风险提示。本地运行，不上传命令。
 
 ### English short posts
 
@@ -258,7 +258,7 @@ Version A:
 
 I kept copying AI-generated deployment commands into SSH sessions and hitting syntax errors because the chat UI wrapped a `python -c` or SQL string across lines.
 
-So I built AI Command Fixer: paste an AI response, detect commands, repair accidental line breaks, and copy one-line commands back to your terminal.
+So I built AI Command Fixer: paste an AI response or one long command, repair accidental line breaks, review the repair points, and copy the one-line result back to your terminal.
 
 Runs locally in your browser. No uploads. No command history.
 
@@ -268,7 +268,7 @@ AI Command Fixer is not a shell linter and not a command explainer.
 
 It does one narrow job: fix accidental line breaks in AI-generated terminal commands so they are copy-ready again.
 
-Local-first, no uploads, multi-command detection, copy all.
+Local-first, no uploads, single-command-first, reviewable repair points.
 
 ## 7. 发布渠道素材差异
 
@@ -306,9 +306,9 @@ Product Hunt：
 ## v0.1.0 - MVP
 
 - Added local-first command line break fixing.
-- Added multi-command detection from pasted AI responses.
+- Added single-command-first repair for pasted AI responses or long commands.
 - Added support for Python `-c`, SQL line breaks, JSON arguments, and backslash continuations.
-- Added copy individual command and copy all.
+- Added per-result copy and click-result-to-copy.
 - Added here-doc detection as unsupported.
 - Added risk hints for dangerous commands.
 - Added local preferences without command history storage.

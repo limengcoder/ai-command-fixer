@@ -55,6 +55,61 @@ export function parseCommands(input, options = {}) {
   const text = typeof input === "string" ? input : "";
   const prefixes = buildPrefixList(options.customPrefixes);
   const lines = preprocessLines(text);
+  const splitMode = options.splitMode === "auto" || options.mode === "auto" ? "auto" : "single";
+  const commands = splitMode === "auto" ? parseAutoCommands(lines, prefixes) : parseSingleCommand(lines, prefixes);
+
+  return {
+    commands,
+    summary: summarizeCommands(commands)
+  };
+}
+
+function parseSingleCommand(lines, prefixes) {
+  const commands = [];
+  let current = null;
+  let pendingHereDoc = null;
+
+  for (const line of lines) {
+    const trimmed = line.cleaned.trim();
+    if (!current) {
+      if (!trimmed) continue;
+      if (!isCommandStart(trimmed, prefixes)) continue;
+      current = createCandidate(line);
+      const hereDocMarker = getHereDocMarker(trimmed);
+      if (hereDocMarker) pendingHereDoc = { marker: hereDocMarker, lines: current.lines };
+      continue;
+    }
+
+    if (pendingHereDoc) {
+      pendingHereDoc.lines.push(line);
+      if (trimmed === pendingHereDoc.marker) {
+        commands.push(buildUnsupported(pendingHereDoc.lines, "检测到 here-doc，多行脚本暂不支持自动压缩。"));
+        current = null;
+        pendingHereDoc = null;
+      }
+      continue;
+    }
+
+    const hereDocMarker = getHereDocMarker(trimmed);
+    if (hereDocMarker) {
+      current.lines.push(line);
+      pendingHereDoc = { marker: hereDocMarker, lines: current.lines };
+      continue;
+    }
+
+    current.lines.push(line);
+  }
+
+  if (pendingHereDoc) {
+    commands.push(buildUnsupported(pendingHereDoc.lines, "检测到 here-doc 起点，但未找到结束标记；未自动压缩。"));
+    current = null;
+  }
+  finalizeCurrent(commands, current);
+
+  return commands;
+}
+
+function parseAutoCommands(lines, prefixes) {
   const commands = [];
   let current = null;
   let pendingHereDoc = null;
@@ -110,14 +165,15 @@ export function parseCommands(input, options = {}) {
   }
   finalizeCurrent(commands, current);
 
+  return commands;
+}
+
+function summarizeCommands(commands) {
   return {
-    commands,
-    summary: {
-      total: commands.length,
-      supported: commands.filter((item) => !item.unsupported).length,
-      unsupported: commands.filter((item) => item.unsupported).length,
-      risky: commands.filter((item) => item.risks.length > 0).length
-    }
+    total: commands.length,
+    supported: commands.filter((item) => !item.unsupported).length,
+    unsupported: commands.filter((item) => item.unsupported).length,
+    risky: commands.filter((item) => item.risks.length > 0).length
   };
 }
 
@@ -245,7 +301,7 @@ function buildNotes(stats, original, fixed) {
   if (stats.removedContinuations > 0) notes.push(`移除 ${stats.removedContinuations} 处反斜杠续行。`);
   if (stats.removedPrompts > 0) notes.push(`移除 ${stats.removedPrompts} 处终端提示符。`);
   if (stats.normalizedWhitespace > 0) notes.push(`归一 ${stats.normalizedWhitespace} 处多余空白。`);
-  if (stats.repairedBrokenTokens > 0) notes.push(`修复 ${stats.repairedBrokenTokens} 处日期、路径或文件名断点。`);
+  if (stats.repairedBrokenTokens > 0) notes.push(`修复 ${stats.repairedBrokenTokens} 处日期、路径、字段名或文件名断点。`);
   if (notes.length === 0 && original === fixed) notes.push("未发现需要修复的折行。");
   return notes;
 }
@@ -253,6 +309,7 @@ function buildNotes(stats, original, fixed) {
 function isCommandStart(line, prefixes) {
   const normalized = stripLeadingCommandDecorators(line.trim());
   if (!normalized || normalized.startsWith("#")) return false;
+  if (/^(?:for|if|while|until|case|select)\b/.test(normalized)) return true;
   if (/^(?:\.{0,2}\/)[^\s]+/.test(normalized)) return true;
   if (/^[\w.-]+\/[\w./-]+\.(?:py|sh|js|mjs|cjs|ts)(?:\s|$)/.test(normalized)) return true;
 
@@ -326,7 +383,7 @@ function hasTrailingContinuation(line) {
 
 function hasOpenSyntax(text) {
   const state = scanSyntax(text);
-  return Boolean(state.quote || state.paren > 0 || state.bracket > 0 || state.brace > 0);
+  return Boolean(state.quote || state.paren > 0 || state.bracket > 0 || state.brace > 0 || hasOpenShellCompound(text));
 }
 
 function scanSyntax(text) {
@@ -368,6 +425,102 @@ function scanSyntax(text) {
   }
 
   return state;
+}
+
+function hasOpenShellCompound(text) {
+  const words = shellControlWords(text);
+  if (!words.length) return false;
+
+  const stack = [];
+  for (const word of words) {
+    if (["for", "select", "while", "until"].includes(word)) {
+      stack.push("loop-pending");
+      continue;
+    }
+    if (word === "if") {
+      stack.push("if-pending");
+      continue;
+    }
+    if (word === "case") {
+      stack.push("case");
+      continue;
+    }
+    if (word === "do") {
+      const index = findLastIndex(stack, (item) => item === "loop-pending");
+      if (index !== -1) stack[index] = "loop";
+      continue;
+    }
+    if (word === "then") {
+      const index = findLastIndex(stack, (item) => item === "if-pending");
+      if (index !== -1) stack[index] = "if";
+      continue;
+    }
+    if (word === "done") {
+      const index = findLastIndex(stack, (item) => item === "loop" || item === "loop-pending");
+      if (index !== -1) stack.splice(index, 1);
+      continue;
+    }
+    if (word === "fi") {
+      const index = findLastIndex(stack, (item) => item === "if" || item === "if-pending");
+      if (index !== -1) stack.splice(index, 1);
+      continue;
+    }
+    if (word === "esac") {
+      const index = findLastIndex(stack, (item) => item === "case");
+      if (index !== -1) stack.splice(index, 1);
+    }
+  }
+
+  return stack.length > 0;
+}
+
+function shellControlWords(text) {
+  const words = [];
+  let quote = null;
+  let escaped = false;
+  let token = "";
+
+  for (const char of text) {
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (quote) {
+      if (char === quote) quote = null;
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      token = flushShellToken(token, words);
+      continue;
+    }
+    if (/[A-Za-z]/.test(char)) {
+      token += char.toLowerCase();
+      continue;
+    }
+    token = flushShellToken(token, words);
+  }
+
+  flushShellToken(token, words);
+  return words;
+}
+
+function flushShellToken(token, words) {
+  if (/^(?:for|select|while|until|if|case|do|then|done|fi|esac)$/.test(token)) {
+    words.push(token);
+  }
+  return "";
+}
+
+function findLastIndex(items, predicate) {
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    if (predicate(items[index])) return index;
+  }
+  return -1;
 }
 
 function collapseWhitespaceOutsideQuotes(text, stats) {
@@ -433,15 +586,65 @@ function repairBrokenTokenWhitespace(text, stats, repairs) {
 
   output = replaceAndTrack(output, new RegExp(`\\b(\\d{4})\\s*${marker}\\s*-\\s*(\\d{2})\\s*-\\s*(\\d{2})\\b`, "g"), "$1-$2-$3", "date", stats, repairs);
   output = replaceAndTrack(output, new RegExp(`\\b(\\d{4})-\\s*${marker}\\s*(\\d{2})-\\s*(\\d{2})\\b`, "g"), "$1-$2-$3", "date", stats, repairs);
+  output = replaceAndTrack(output, new RegExp(`\\b(\\d{4})-(\\d{2})-\\s*${marker}\\s*(\\d{2})\\b`, "g"), "$1-$2-$3", "date", stats, repairs);
   output = repairQuotedSqlLikeSegments(output, stats, repairs);
   output = repairQuotedPathLikeSegments(output, stats, repairs);
+  output = repairQuotedLikelyTokenBreaks(output, stats, repairs);
+  output = replaceAndTrack(output, new RegExp(`([/\\\\])\\s*${marker}\\s*([A-Za-z0-9._-])`, "g"), "$1$2", "path", stats, repairs);
+  output = replaceAndTrack(output, new RegExp(`([A-Za-z0-9._-])\\s*${marker}\\s*([/\\\\])`, "g"), "$1$2", "path", stats, repairs);
   output = replaceAndTrack(output, new RegExp(`([A-Za-z0-9])_\\s*${marker}\\s*([A-Za-z0-9])`, "g"), "$1_$2", "token", stats, repairs);
   output = replaceAndTrack(output, new RegExp(`([A-Za-z0-9])\\s*${marker}\\s*_([A-Za-z0-9])`, "g"), "$1_$2", "token", stats, repairs);
   output = replaceAndTrack(output, new RegExp(`([A-Za-z0-9])\\.\\s*${marker}\\s*([A-Za-z0-9])`, "g"), "$1.$2", "token", stats, repairs);
   output = replaceAndTrack(output, new RegExp(`([A-Za-z0-9])\\s*${marker}\\s*\\.([A-Za-z0-9])`, "g"), "$1.$2", "token", stats, repairs);
+  output = repairQuotedLikelyTokenSpaces(output, stats, repairs);
   output = output.replace(new RegExp(`\\s*${marker}\\s*`, "g"), " ");
 
   return output;
+}
+
+function repairQuotedLikelyTokenBreaks(text, stats, repairs) {
+  return text.replace(/(["'])([^"'\n]*)(\1)/g, (match, open, body, close) => {
+    if (!body.includes(JOIN_MARK)) return match;
+    const repaired = body.replace(new RegExp(`\\s*${JOIN_MARK}\\s*`, "g"), "");
+    if (!looksLikeSingleCodeToken(repaired) || repaired === body) return match;
+    stats.repairedBrokenTokens += 1;
+    repairs.push({
+      type: "inferred-token",
+      before: visibleJoin(body),
+      after: repaired
+    });
+    return `${open}${repaired}${close}`;
+  });
+}
+
+function repairQuotedLikelyTokenSpaces(text, stats, repairs) {
+  return text.replace(/(["'])([^"'\n]*\s{2,}[^"'\n]*)(\1)/g, (match, open, body, close) => {
+    if (!looksLikeSingleBrokenToken(body)) return match;
+    const repaired = body.replace(/\s{2,}/g, "");
+    if (repaired === body) return match;
+    stats.repairedBrokenTokens += 1;
+    repairs.push({
+      type: "inferred-token",
+      before: body,
+      after: repaired
+    });
+    return `${open}${repaired}${close}`;
+  });
+}
+
+function looksLikeSingleBrokenToken(body) {
+  if (!/\s{2,}/.test(body)) return false;
+  if (body.trim() !== body) return false;
+  const repaired = body.replace(/\s{2,}/g, "");
+  if (!looksLikeSingleCodeToken(repaired)) return false;
+  if (!/[A-Za-z0-9_./\\]\s{2,}[A-Za-z0-9_./\\]/.test(body)) return false;
+  return true;
+}
+
+function looksLikeSingleCodeToken(value) {
+  if (!/^[A-Za-z0-9._/-]+$/.test(value)) return false;
+  if (!/[_.\\/]/.test(value)) return false;
+  return true;
 }
 
 function repairQuotedSqlLikeSegments(text, stats, repairs) {
@@ -467,7 +670,10 @@ function looksSqlLike(body) {
 function repairSqlLikeBody(body) {
   const marker = JOIN_MARK;
   return body
-    .replace(new RegExp(`\\b([A-Za-z_][A-Za-z0-9_]*)\\s*${marker}\\s*([A-Za-z0-9_]*_[A-Za-z0-9_]*)\\b`, "g"), "$1$2")
+    .replace(new RegExp(`\\b([A-Za-z_][A-Za-z0-9_]*)\\s*${marker}\\s*([A-Za-z0-9_]*_[A-Za-z0-9_]*)\\b`, "g"), (match, left, right) => {
+      if (isSqlKeyword(left) || isSqlKeyword(right)) return match;
+      return `${left}${right}`;
+    })
     .replace(new RegExp(`\\b([A-Za-z_][A-Za-z0-9_]*_)\\s*${marker}\\s*([A-Za-z0-9_]+)\\b`, "g"), "$1$2")
     .replace(new RegExp(`\\.\\s*${marker}\\s*([A-Za-z_][A-Za-z0-9_]*)\\b`, "g"), ".$1")
     .replace(new RegExp(`\\b([A-Za-z_][A-Za-z0-9_]*)\\.\\s*${marker}\\s*([A-Za-z_][A-Za-z0-9_]*)\\b`, "g"), "$1.$2")
