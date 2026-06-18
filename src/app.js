@@ -172,7 +172,7 @@ function renderCommandCard(command, index) {
   if (actions.includes("restore-auto")) {
     const restoreButton = document.createElement("button");
     restoreButton.type = "button";
-    restoreButton.className = "link-button restore-button";
+    restoreButton.className = "restore-button";
     restoreButton.textContent = "恢复自动修复结果";
     restoreButton.addEventListener("click", () => {
       latestCommands[index] = restoreResultAutoFixedText(command);
