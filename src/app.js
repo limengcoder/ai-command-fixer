@@ -1,6 +1,6 @@
-import { parseCommands } from "./command-parser.js?v=local-stash-20260613";
-import { copyText } from "./clipboard.js?v=local-stash-20260613";
-import { EXAMPLE_INPUT } from "./examples.js?v=local-stash-20260613";
+import { parseCommands } from "./command-parser.js?v=cli-option-20260618";
+import { copyText } from "./clipboard.js?v=cli-option-20260618";
+import { EXAMPLE_INPUT } from "./examples.js?v=cli-option-20260618";
 import {
   addLocalStash,
   clearLocalStash,
@@ -8,8 +8,8 @@ import {
   deleteLocalStashItem,
   loadLocalStash,
   STASH_TTL_OPTIONS
-} from "./local-stash.js?v=local-stash-20260613";
-import { clearPreferences, loadPreferences, savePreferences } from "./storage.js?v=local-stash-20260613";
+} from "./local-stash.js?v=cli-option-20260618";
+import { clearPreferences, loadPreferences, savePreferences } from "./storage.js?v=cli-option-20260618";
 
 const elements = {
   input: document.querySelector("#inputText"),

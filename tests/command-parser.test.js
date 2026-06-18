@@ -272,6 +272,30 @@ test("P1: repairs real-newline quoted field names outside SQL strings", () => {
   assert.ok(result.commands[0].repairs.some((repair) => repair.type === "inferred-token" && repair.after === "citation_list"));
 });
 
+test("P1: repairs long CLI option names split after a hyphen by real newlines", () => {
+  const input = `root@iZ2zeakc1dke7l2mrm324wZ:/home/magneto/app/geo# cd /home/magneto/app/geo && /home/venvs/geo/bin/python scripts/refresh_completed_results.py --customer-code guanghai_yinghua --date 2026-06-18 --batch-code guanghai_yinghua_20260618_daily --status-
+  concurrency 10 --result-
+  concurrency 8 --request-
+  interval 0.2 --platform deepseek --platform yuanbao`;
+
+  const result = parseCommands(input);
+  const fixed = result.commands[0].fixed;
+
+  assert.equal(result.commands.length, 1);
+  assert.match(fixed, /--status-concurrency 10/);
+  assert.match(fixed, /--result-concurrency 8/);
+  assert.match(fixed, /--request-interval 0\.2/);
+  assert.match(fixed, /--batch-code guanghai_yinghua_20260618_daily/);
+  assert.match(fixed, /--platform deepseek --platform yuanbao/);
+  assert.doesNotMatch(fixed, /--status-\s+concurrency/);
+  assert.doesNotMatch(fixed, /--result-\s+concurrency/);
+  assert.doesNotMatch(fixed, /--request-\s+interval/);
+  assert.doesNotMatch(fixed, /--batch-codeguanghai_yinghua_20260618_daily/);
+  assert.doesNotMatch(fixed, /--platformdeepseek/);
+  assert.ok(result.commands[0].repairs.some((repair) => repair.type === "option" && repair.after === "--status-concurrency"));
+  assert.match(result.commands[0].notes.join(" "), /命令参数名/);
+});
+
 test("P1: covers long-command manual regression cases", () => {
   const cases = [
     {

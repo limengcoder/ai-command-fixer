@@ -301,7 +301,7 @@ function buildNotes(stats, original, fixed) {
   if (stats.removedContinuations > 0) notes.push(`移除 ${stats.removedContinuations} 处反斜杠续行。`);
   if (stats.removedPrompts > 0) notes.push(`移除 ${stats.removedPrompts} 处终端提示符。`);
   if (stats.normalizedWhitespace > 0) notes.push(`归一 ${stats.normalizedWhitespace} 处多余空白。`);
-  if (stats.repairedBrokenTokens > 0) notes.push(`修复 ${stats.repairedBrokenTokens} 处日期、路径、字段名或文件名断点。`);
+  if (stats.repairedBrokenTokens > 0) notes.push(`修复 ${stats.repairedBrokenTokens} 处日期、路径、字段名、文件名或命令参数名断点。`);
   if (notes.length === 0 && original === fixed) notes.push("未发现需要修复的折行。");
   return notes;
 }
@@ -587,6 +587,7 @@ function repairBrokenTokenWhitespace(text, stats, repairs) {
   output = replaceAndTrack(output, new RegExp(`\\b(\\d{4})\\s*${marker}\\s*-\\s*(\\d{2})\\s*-\\s*(\\d{2})\\b`, "g"), "$1-$2-$3", "date", stats, repairs);
   output = replaceAndTrack(output, new RegExp(`\\b(\\d{4})-\\s*${marker}\\s*(\\d{2})-\\s*(\\d{2})\\b`, "g"), "$1-$2-$3", "date", stats, repairs);
   output = replaceAndTrack(output, new RegExp(`\\b(\\d{4})-(\\d{2})-\\s*${marker}\\s*(\\d{2})\\b`, "g"), "$1-$2-$3", "date", stats, repairs);
+  output = repairCliLongOptionBreaks(output, stats, repairs);
   output = repairQuotedSqlLikeSegments(output, stats, repairs);
   output = repairQuotedPathLikeSegments(output, stats, repairs);
   output = repairQuotedLikelyTokenBreaks(output, stats, repairs);
@@ -600,6 +601,22 @@ function repairBrokenTokenWhitespace(text, stats, repairs) {
   output = output.replace(new RegExp(`\\s*${marker}\\s*`, "g"), " ");
 
   return output;
+}
+
+function repairCliLongOptionBreaks(text, stats, repairs) {
+  const marker = JOIN_MARK;
+  const pattern = new RegExp(`(^|[\\s;&|()])(--[A-Za-z][A-Za-z0-9-]*-)\\s*${marker}\\s*([A-Za-z][A-Za-z0-9-]*)(?=\\s|=|$)`, "g");
+
+  return text.replace(pattern, (match, boundary, prefix, suffix) => {
+    const repaired = `${prefix}${suffix}`;
+    stats.repairedBrokenTokens += 1;
+    repairs.push({
+      type: "option",
+      before: visibleJoin(`${prefix} ${JOIN_MARK} ${suffix}`),
+      after: repaired
+    });
+    return `${boundary}${repaired}`;
+  });
 }
 
 function repairQuotedLikelyTokenBreaks(text, stats, repairs) {
