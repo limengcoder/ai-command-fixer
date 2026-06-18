@@ -1,6 +1,6 @@
-import { parseCommands } from "./command-parser.js?v=result-edit-20260618";
-import { copyText } from "./clipboard.js?v=result-edit-20260618";
-import { EXAMPLE_INPUT } from "./examples.js?v=result-edit-20260618";
+import { parseCommands } from "./command-parser.js?v=default-edit-20260618";
+import { copyText } from "./clipboard.js?v=default-edit-20260618";
+import { EXAMPLE_INPUT } from "./examples.js?v=default-edit-20260618";
 import {
   addLocalStash,
   clearLocalStash,
@@ -8,9 +8,8 @@ import {
   deleteLocalStashItem,
   loadLocalStash,
   STASH_TTL_OPTIONS
-} from "./local-stash.js?v=result-edit-20260618";
+} from "./local-stash.js?v=default-edit-20260618";
 import {
-  beginResultEditing,
   canEditResult,
   canStashResult,
   createResultStates,
@@ -20,8 +19,8 @@ import {
   getResultStashText,
   restoreResultAutoFixedText,
   updateResultCurrentText
-} from "./result-state.js?v=result-edit-20260618";
-import { clearPreferences, loadPreferences, savePreferences } from "./storage.js?v=result-edit-20260618";
+} from "./result-state.js?v=default-edit-20260618";
+import { clearPreferences, loadPreferences, savePreferences } from "./storage.js?v=default-edit-20260618";
 
 const elements = {
   input: document.querySelector("#inputText"),
@@ -145,26 +144,25 @@ function renderCommandCard(command, index) {
   title.append(`命令 ${index + 1}`);
   title.appendChild(createBadge(command.unsupported ? "不支持" : "可复制", command.unsupported ? "unsupported" : ""));
   if (command.risks.length) title.appendChild(createBadge("高风险", "risk"));
-  if (command.isEditing || command.isManuallyEdited) title.appendChild(createBadge("已手动编辑", "edited"));
+  if (command.isManuallyEdited) title.appendChild(createBadge("已手动编辑", "edited"));
 
   const cardActions = document.createElement("div");
   cardActions.className = "card-actions";
 
   const copyButton = document.createElement("button");
   copyButton.type = "button";
-  copyButton.textContent = command.isEditing ? "复制编辑结果" : "复制";
+  copyButton.textContent = "复制";
   copyButton.addEventListener("click", async () => {
-    const fallbackLabel = command.isEditing ? "复制编辑结果" : "复制";
-    const copied = await copyWithFeedback(copyButton, fallbackLabel, getResultCopyText(latestCommands[index]));
+    const copied = await copyWithFeedback(copyButton, "复制", getResultCopyText(latestCommands[index]));
     if (copied) renderStatus(`已复制命令 ${index + 1}。`, "success");
   });
 
   cardActions.append(copyButton);
 
-  if (canStashResult(command) && (actions.includes("stash") || actions.includes("stash-edit"))) {
+  if (canStashResult(command) && actions.includes("stash")) {
     const stashButton = document.createElement("button");
     stashButton.type = "button";
-    stashButton.textContent = command.isEditing ? "暂存编辑结果" : "暂存";
+    stashButton.textContent = "暂存";
     stashButton.addEventListener("click", () => {
       stashFixedCommand(stashButton, getResultStashText(latestCommands[index]));
     });
@@ -182,21 +180,6 @@ function renderCommandCard(command, index) {
       renderStatus(`命令 ${index + 1} 已恢复为自动修复结果。`, "success");
     });
     cardActions.appendChild(restoreButton);
-  } else if (canEditResult(command) && actions.includes("edit")) {
-    const editButton = document.createElement("button");
-    editButton.type = "button";
-    editButton.className = "link-button edit-result-button";
-    editButton.textContent = "编辑";
-    editButton.addEventListener("click", () => {
-      latestCommands[index] = beginResultEditing(command);
-      renderResults(latestCommands, getLatestSummary(), { preserveStatus: true });
-      const editor = elements.resultsList.querySelector(`[data-command-editor="${index}"]`);
-      if (editor) {
-        editor.focus();
-        editor.setSelectionRange(editor.value.length, editor.value.length);
-      }
-    });
-    cardActions.appendChild(editButton);
   }
   head.append(title, cardActions);
 
@@ -209,7 +192,7 @@ function renderCommandCard(command, index) {
     body.appendChild(original);
   }
 
-  if (command.isEditing) {
+  if (canEditResult(command)) {
     const editor = document.createElement("textarea");
     editor.className = "result-editor";
     editor.spellcheck = false;
@@ -217,9 +200,6 @@ function renderCommandCard(command, index) {
     editor.rows = Math.min(16, Math.max(6, editor.value.split("\n").length + 1));
     editor.dataset.commandEditor = String(index);
     editor.setAttribute("aria-label", `命令 ${index + 1} 编辑结果`);
-    editor.addEventListener("click", (event) => {
-      event.stopPropagation();
-    });
     editor.addEventListener("input", () => {
       latestCommands[index] = updateResultCurrentText(latestCommands[index], editor.value);
     });

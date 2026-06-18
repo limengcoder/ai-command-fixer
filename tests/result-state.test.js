@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  beginResultEditing,
   canEditResult,
   canStashResult,
   createResultState,
@@ -15,11 +14,11 @@ import {
 } from "../src/result-state.js";
 
 test("result editing: copy and stash use edited currentText", () => {
-  const result = beginResultEditing(createResultState({
+  const result = createResultState({
     original: "python -c 'print(1)'",
     fixed: "python -c 'print(1)'",
     unsupported: false
-  }));
+  });
 
   const edited = updateResultCurrentText(result, "python -c 'print(2)'");
 
@@ -30,13 +29,13 @@ test("result editing: copy and stash use edited currentText", () => {
   assert.equal(getResultStashText(edited), "python -c 'print(2)'");
 });
 
-test("result editing: restore returns to auto-fixed result and clears editing state", () => {
+test("result editing: restore returns to auto-fixed result and remains editable", () => {
   const edited = updateResultCurrentText(
-    beginResultEditing(createResultState({
+    createResultState({
       original: "python -c 'print(1)'",
       fixed: "python -c 'print(1)'",
       unsupported: false
-    })),
+    }),
     "python -c 'print(2)'"
   );
 
@@ -44,8 +43,9 @@ test("result editing: restore returns to auto-fixed result and clears editing st
 
   assert.equal(restored.currentText, "python -c 'print(1)'");
   assert.equal(restored.autoFixedText, "python -c 'print(1)'");
-  assert.equal(restored.isEditing, false);
   assert.equal(restored.isManuallyEdited, false);
+  assert.equal(canEditResult(restored), true);
+  assert.deepEqual(getResultActions(restored), ["copy", "stash", "restore-auto"]);
   assert.equal(getResultCopyText(restored), "python -c 'print(1)'");
   assert.equal(getResultStashText(restored), "python -c 'print(1)'");
 });
@@ -57,18 +57,18 @@ test("result editing: unsupported results do not expose stash or edit actions", 
     unsupported: true
   });
 
-  const attemptedEdit = beginResultEditing(unsupported);
-  const attemptedUpdate = updateResultCurrentText(attemptedEdit, "echo changed");
+  const attemptedUpdate = updateResultCurrentText(unsupported, "echo changed");
+  const attemptedRestore = restoreResultAutoFixedText(attemptedUpdate);
 
   assert.deepEqual(getResultActions(unsupported), ["copy"]);
   assert.equal(canEditResult(unsupported), false);
   assert.equal(canStashResult(unsupported), false);
   assert.equal(getResultStashText(unsupported), "");
-  assert.equal(attemptedEdit.isEditing, false);
   assert.equal(attemptedUpdate.currentText, "cat <<EOF\nhello\nEOF");
+  assert.equal(attemptedRestore, attemptedUpdate);
 });
 
-test("result editing: createResultStates initializes app-facing state", () => {
+test("result editing: createResultStates initializes supported results as editable", () => {
   const [supported, unsupported] = createResultStates([
     {
       original: "echo one",
@@ -84,22 +84,20 @@ test("result editing: createResultStates initializes app-facing state", () => {
 
   assert.equal(supported.autoFixedText, "echo fixed");
   assert.equal(supported.currentText, "echo fixed");
-  assert.equal(supported.isEditing, false);
   assert.equal(supported.isManuallyEdited, false);
   assert.equal(canEditResult(supported), true);
   assert.equal(canStashResult(supported), true);
-  assert.deepEqual(getResultActions(supported), ["copy", "stash", "edit"]);
-  assert.deepEqual(getResultActions(beginResultEditing(supported)), ["copy-edit", "stash-edit", "restore-auto"]);
+  assert.deepEqual(getResultActions(supported), ["copy", "stash", "restore-auto"]);
   assert.deepEqual(getResultActions(unsupported), ["copy"]);
 });
 
 test("result editing: copy all uses each supported result currentText", () => {
   const first = updateResultCurrentText(
-    beginResultEditing(createResultState({
+    createResultState({
       original: "echo one",
       fixed: "echo one",
       unsupported: false
-    })),
+    }),
     "echo edited"
   );
   const second = createResultState({

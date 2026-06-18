@@ -4,7 +4,6 @@ export function createResultState(command) {
     ...command,
     autoFixedText,
     currentText: autoFixedText,
-    isEditing: false,
     isManuallyEdited: false
   };
 }
@@ -21,14 +20,6 @@ export function canStashResult(result) {
   return !result.unsupported;
 }
 
-export function beginResultEditing(result) {
-  if (!canEditResult(result)) return result;
-  return {
-    ...result,
-    isEditing: true
-  };
-}
-
 export function updateResultCurrentText(result, currentText) {
   if (!canEditResult(result)) return result;
   return {
@@ -39,10 +30,10 @@ export function updateResultCurrentText(result, currentText) {
 }
 
 export function restoreResultAutoFixedText(result) {
+  if (!canEditResult(result)) return result;
   return {
     ...result,
     currentText: result.autoFixedText,
-    isEditing: false,
     isManuallyEdited: false
   };
 }
@@ -64,6 +55,5 @@ export function getCopyAllText(results) {
 
 export function getResultActions(result) {
   if (result.unsupported) return ["copy"];
-  if (result.isEditing) return ["copy-edit", "stash-edit", "restore-auto"];
-  return ["copy", "stash", "edit"];
+  return ["copy", "stash", "restore-auto"];
 }
