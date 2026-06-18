@@ -1,6 +1,6 @@
-import { parseCommands } from "./command-parser.js?v=cli-option-20260618";
-import { copyText } from "./clipboard.js?v=cli-option-20260618";
-import { EXAMPLE_INPUT } from "./examples.js?v=cli-option-20260618";
+import { parseCommands } from "./command-parser.js?v=result-edit-20260618";
+import { copyText } from "./clipboard.js?v=result-edit-20260618";
+import { EXAMPLE_INPUT } from "./examples.js?v=result-edit-20260618";
 import {
   addLocalStash,
   clearLocalStash,
@@ -8,8 +8,20 @@ import {
   deleteLocalStashItem,
   loadLocalStash,
   STASH_TTL_OPTIONS
-} from "./local-stash.js?v=cli-option-20260618";
-import { clearPreferences, loadPreferences, savePreferences } from "./storage.js?v=cli-option-20260618";
+} from "./local-stash.js?v=result-edit-20260618";
+import {
+  beginResultEditing,
+  canEditResult,
+  canStashResult,
+  createResultStates,
+  getCopyAllText,
+  getResultActions,
+  getResultCopyText,
+  getResultStashText,
+  restoreResultAutoFixedText,
+  updateResultCurrentText
+} from "./result-state.js?v=result-edit-20260618";
+import { clearPreferences, loadPreferences, savePreferences } from "./storage.js?v=result-edit-20260618";
 
 const elements = {
   input: document.querySelector("#inputText"),
@@ -83,11 +95,11 @@ function runParse() {
     customPrefixes: preferences.customPrefixes,
     splitMode: "single"
   });
-  latestCommands = result.commands;
-  renderResults(result.commands, result.summary);
+  latestCommands = createResultStates(result.commands);
+  renderResults(latestCommands, result.summary);
 }
 
-function renderResults(commands, summary) {
+function renderResults(commands, summary, options = {}) {
   elements.resultsList.replaceChildren();
   setCopyAllVisibility(summary.supported > 0);
 
@@ -104,7 +116,9 @@ function renderResults(commands, summary) {
   if (summary.unsupported) detail.push(`${summary.unsupported} 条不支持`);
   if (summary.risky) detail.push(`${summary.risky} 条有风险提示`);
   elements.resultSummary.textContent = detail.join(" · ");
-  renderStatus("修复完成。复制前请核对命令语义，风险提示不会阻止复制。", "success");
+  if (!options.preserveStatus) {
+    renderStatus("修复完成。复制前请核对命令语义，风险提示不会阻止复制。", "success");
+  }
 
   const fragment = document.createDocumentFragment();
   commands.forEach((command, index) => {
@@ -114,6 +128,8 @@ function renderResults(commands, summary) {
 }
 
 function renderCommandCard(command, index) {
+  const actions = getResultActions(command);
+
   const card = document.createElement("article");
   card.className = [
     "result-card",
@@ -129,30 +145,59 @@ function renderCommandCard(command, index) {
   title.append(`命令 ${index + 1}`);
   title.appendChild(createBadge(command.unsupported ? "不支持" : "可复制", command.unsupported ? "unsupported" : ""));
   if (command.risks.length) title.appendChild(createBadge("高风险", "risk"));
+  if (command.isEditing || command.isManuallyEdited) title.appendChild(createBadge("已手动编辑", "edited"));
 
   const cardActions = document.createElement("div");
   cardActions.className = "card-actions";
 
   const copyButton = document.createElement("button");
   copyButton.type = "button";
-  copyButton.textContent = "复制";
+  copyButton.textContent = command.isEditing ? "复制编辑结果" : "复制";
   copyButton.addEventListener("click", async () => {
-    await copyWithFeedback(copyButton, "复制", command.fixed || command.original);
+    const fallbackLabel = command.isEditing ? "复制编辑结果" : "复制";
+    const copied = await copyWithFeedback(copyButton, fallbackLabel, getResultCopyText(latestCommands[index]));
+    if (copied) renderStatus(`已复制命令 ${index + 1}。`, "success");
   });
 
-  const stashButton = document.createElement("button");
-  stashButton.type = "button";
-  stashButton.textContent = "暂存";
-  stashButton.disabled = command.unsupported;
-  if (command.unsupported) {
-    stashButton.title = "不支持的多行结构不会作为修复后命令暂存。";
-  } else {
+  cardActions.append(copyButton);
+
+  if (canStashResult(command) && (actions.includes("stash") || actions.includes("stash-edit"))) {
+    const stashButton = document.createElement("button");
+    stashButton.type = "button";
+    stashButton.textContent = command.isEditing ? "暂存编辑结果" : "暂存";
     stashButton.addEventListener("click", () => {
-      stashFixedCommand(stashButton, command.fixed);
+      stashFixedCommand(stashButton, getResultStashText(latestCommands[index]));
     });
+    cardActions.appendChild(stashButton);
   }
 
-  cardActions.append(copyButton, stashButton);
+  if (actions.includes("restore-auto")) {
+    const restoreButton = document.createElement("button");
+    restoreButton.type = "button";
+    restoreButton.className = "link-button restore-button";
+    restoreButton.textContent = "恢复自动修复结果";
+    restoreButton.addEventListener("click", () => {
+      latestCommands[index] = restoreResultAutoFixedText(command);
+      renderResults(latestCommands, getLatestSummary(), { preserveStatus: true });
+      renderStatus(`命令 ${index + 1} 已恢复为自动修复结果。`, "success");
+    });
+    cardActions.appendChild(restoreButton);
+  } else if (canEditResult(command) && actions.includes("edit")) {
+    const editButton = document.createElement("button");
+    editButton.type = "button";
+    editButton.className = "link-button edit-result-button";
+    editButton.textContent = "编辑";
+    editButton.addEventListener("click", () => {
+      latestCommands[index] = beginResultEditing(command);
+      renderResults(latestCommands, getLatestSummary(), { preserveStatus: true });
+      const editor = elements.resultsList.querySelector(`[data-command-editor="${index}"]`);
+      if (editor) {
+        editor.focus();
+        editor.setSelectionRange(editor.value.length, editor.value.length);
+      }
+    });
+    cardActions.appendChild(editButton);
+  }
   head.append(title, cardActions);
 
   const body = document.createElement("div");
@@ -164,25 +209,42 @@ function renderCommandCard(command, index) {
     body.appendChild(original);
   }
 
-  const fixed = createCodeBlock(command.fixed || command.original);
-  fixed.setAttribute("aria-label", command.unsupported ? `命令 ${index + 1} 未修复原文` : `命令 ${index + 1} 修复结果`);
-  fixed.classList.add("copyable-block");
-  fixed.tabIndex = 0;
-  fixed.setAttribute("role", "button");
-  fixed.setAttribute(
-    "aria-label",
-    command.unsupported ? `命令 ${index + 1} 原文，点击或按回车复制` : `命令 ${index + 1} 修复结果，点击或按回车复制`
-  );
-  fixed.addEventListener("click", () => {
-    copyResultBlock(index, command.fixed || command.original);
-  });
-  fixed.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      copyResultBlock(index, command.fixed || command.original);
-    }
-  });
-  body.appendChild(fixed);
+  if (command.isEditing) {
+    const editor = document.createElement("textarea");
+    editor.className = "result-editor";
+    editor.spellcheck = false;
+    editor.value = getResultCopyText(command);
+    editor.rows = Math.min(16, Math.max(6, editor.value.split("\n").length + 1));
+    editor.dataset.commandEditor = String(index);
+    editor.setAttribute("aria-label", `命令 ${index + 1} 编辑结果`);
+    editor.addEventListener("click", (event) => {
+      event.stopPropagation();
+    });
+    editor.addEventListener("input", () => {
+      latestCommands[index] = updateResultCurrentText(latestCommands[index], editor.value);
+    });
+    body.appendChild(editor);
+  } else {
+    const fixed = createCodeBlock(getResultCopyText(command));
+    fixed.setAttribute("aria-label", command.unsupported ? `命令 ${index + 1} 未修复原文` : `命令 ${index + 1} 修复结果`);
+    fixed.classList.add("copyable-block");
+    fixed.tabIndex = 0;
+    fixed.setAttribute("role", "button");
+    fixed.setAttribute(
+      "aria-label",
+      command.unsupported ? `命令 ${index + 1} 原文，点击或按回车复制` : `命令 ${index + 1} 修复结果，点击或按回车复制`
+    );
+    fixed.addEventListener("click", () => {
+      copyResultBlock(index, getResultCopyText(latestCommands[index]));
+    });
+    fixed.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        copyResultBlock(index, getResultCopyText(latestCommands[index]));
+      }
+    });
+    body.appendChild(fixed);
+  }
 
   if (command.risks.length) {
     const risk = document.createElement("div");
@@ -192,33 +254,7 @@ function renderCommandCard(command, index) {
   }
 
   if (command.repairs?.length) {
-    const repairs = document.createElement("div");
-    repairs.className = "repair-list";
-    const label = document.createElement("div");
-    label.className = "repair-label";
-    label.textContent = "自动修复点";
-    repairs.appendChild(label);
-
-    command.repairs.forEach((repair) => {
-      const item = document.createElement("div");
-      item.className = "repair-item";
-      const before = document.createElement("mark");
-      before.textContent = repair.before;
-      const arrow = document.createElement("span");
-      arrow.textContent = "->";
-      const after = document.createElement("mark");
-      after.textContent = repair.after;
-      if (repair.type === "inferred-token") {
-        const type = document.createElement("span");
-        type.className = "repair-type";
-        type.textContent = "推测";
-        item.append(type);
-      }
-      item.append(before, arrow, after);
-      repairs.appendChild(item);
-    });
-
-    body.appendChild(repairs);
+    body.appendChild(renderRepairList(command.repairs));
   }
 
   if (preferences.showDiff && command.notes.length) {
@@ -234,6 +270,108 @@ function renderCommandCard(command, index) {
 
   card.append(head, body);
   return card;
+}
+
+function getLatestSummary() {
+  return {
+    total: latestCommands.length,
+    supported: latestCommands.filter((item) => !item.unsupported).length,
+    unsupported: latestCommands.filter((item) => item.unsupported).length,
+    risky: latestCommands.filter((item) => item.risks.length).length
+  };
+}
+
+function renderRepairList(repairs) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "repair-list";
+
+  const groups = [
+    {
+      title: "自动修复",
+      items: repairs.filter((repair) => getRepairMeta(repair).group === "auto")
+    },
+    {
+      title: "建议核对",
+      items: repairs.filter((repair) => getRepairMeta(repair).group === "review")
+    }
+  ].filter((group) => group.items.length);
+
+  groups.forEach((group) => {
+    const section = document.createElement("div");
+    section.className = "repair-group";
+    const label = document.createElement("div");
+    label.className = "repair-label";
+    label.textContent = group.title;
+    section.appendChild(label);
+
+    group.items.forEach((repair) => {
+      const meta = getRepairMeta(repair);
+      const item = document.createElement("div");
+      item.className = ["repair-item", meta.group === "review" ? "needs-review" : ""].filter(Boolean).join(" ");
+
+      const type = document.createElement("span");
+      type.className = "repair-type";
+      type.textContent = meta.label;
+
+      const before = document.createElement("mark");
+      before.textContent = repair.before;
+      const arrow = document.createElement("span");
+      arrow.textContent = "->";
+      const after = document.createElement("mark");
+      after.textContent = repair.after;
+      const help = document.createElement("span");
+      help.className = "repair-help";
+      help.textContent = meta.help;
+
+      item.append(type, before, arrow, after, help);
+      section.appendChild(item);
+    });
+
+    wrapper.appendChild(section);
+  });
+
+  return wrapper;
+}
+
+function getRepairMeta(repair) {
+  const metaByType = {
+    date: {
+      group: "auto",
+      label: "日期断点",
+      help: "识别为日期被换行打断，已合并为连续日期。"
+    },
+    path: {
+      group: "auto",
+      label: "路径断点",
+      help: "识别为路径片段被换行打断，已合并路径。"
+    },
+    option: {
+      group: "auto",
+      label: "命令参数名断点",
+      help: "识别为 CLI 长选项名被换行打断，已合并连字符两侧内容。"
+    },
+    token: {
+      group: "auto",
+      label: "字段名断点",
+      help: "识别为代码 token 被换行打断，已合并相邻片段。"
+    },
+    sql: {
+      group: "review",
+      label: "SQL 片段",
+      help: "已修复 SQL 字符串内的疑似断点，建议核对字段名和表名。"
+    },
+    "inferred-token": {
+      group: "review",
+      label: "推测修复",
+      help: "根据字段名、文件名或标识符形态推测合并，建议核对业务含义。"
+    }
+  };
+
+  return metaByType[repair.type] ?? {
+    group: "review",
+    label: "建议核对",
+    help: "已处理疑似断点，建议复制前核对。"
+  };
 }
 
 function createBadge(text, variant) {
@@ -340,6 +478,7 @@ function renderStashItem(item) {
 }
 
 function stashFixedCommand(button, command) {
+  const originalLabel = button.textContent;
   const selectedTtl = elements.stashTtl.value || DEFAULT_STASH_TTL;
   const result = addLocalStash(command, selectedTtl);
   localStashItems = result.items;
@@ -349,7 +488,7 @@ function stashFixedCommand(button, command) {
     button.textContent = "已暂存";
     window.clearTimeout(buttonFeedbackTimer);
     buttonFeedbackTimer = window.setTimeout(() => {
-      button.textContent = "暂存";
+      button.textContent = originalLabel;
     }, 1400);
     renderStatus(`已暂存，${result.ttl.label}后自动清理。`, "success");
     renderStashMessage("暂存内容仅保存在当前浏览器本地，过期自动清理。", "success");
@@ -394,7 +533,7 @@ function formatDateTime(value) {
 
 async function copyAllCommands() {
   const supported = latestCommands.filter((command) => !command.unsupported);
-  const text = supported.map((command) => command.fixed).join("\n");
+  const text = getCopyAllText(latestCommands);
   if (!text) return;
 
   await copyWithFeedback(elements.copyAllButton, "复制全部", text);
@@ -475,12 +614,7 @@ function updatePreferencesFromForm() {
   };
   savePreferences(preferences);
   if (latestCommands.length) {
-    renderResults(latestCommands, {
-      total: latestCommands.length,
-      supported: latestCommands.filter((item) => !item.unsupported).length,
-      unsupported: latestCommands.filter((item) => item.unsupported).length,
-      risky: latestCommands.filter((item) => item.risks.length).length
-    });
+    renderResults(latestCommands, getLatestSummary());
   }
 }
 

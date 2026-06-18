@@ -497,6 +497,11 @@ select:focus {
   color: var(--danger);
 }
 
+.badge.edited {
+  background: #e8f7f4;
+  color: var(--accent-strong);
+}
+
 .badge.unsupported {
   background: var(--warn-bg);
   color: #714d00;
@@ -533,6 +538,20 @@ select:focus {
   outline-offset: 2px;
 }
 
+.result-editor {
+  min-height: 180px;
+  max-height: 520px;
+  resize: vertical;
+  overflow: auto;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  padding: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre;
+}
+
 .original-block {
   background: #f5f7f9;
   color: #243041;
@@ -557,12 +576,17 @@ select:focus {
 
 .repair-list {
   display: grid;
-  gap: 8px;
+  gap: 12px;
   border-radius: var(--radius);
   background: #f8fbff;
   padding: 10px;
   color: #294052;
   font-size: 13px;
+}
+
+.repair-group {
+  display: grid;
+  gap: 8px;
 }
 
 .repair-label {
@@ -578,6 +602,10 @@ select:focus {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 }
 
+.repair-item.needs-review {
+  color: #59440a;
+}
+
 .repair-item mark {
   border: 1px solid #b8d4ef;
   border-radius: 6px;
@@ -588,12 +616,24 @@ select:focus {
 
 .repair-type {
   border-radius: 999px;
-  background: #fff4d6;
-  color: #714d00;
+  background: #e8f7f4;
+  color: var(--accent-strong);
   padding: 2px 7px;
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 12px;
   font-weight: 800;
+}
+
+.needs-review .repair-type {
+  background: #fff4d6;
+  color: #714d00;
+}
+
+.repair-help {
+  flex-basis: 100%;
+  color: var(--muted);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.45;
 }
 
 .sr-only {
