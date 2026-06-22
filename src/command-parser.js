@@ -21,6 +21,9 @@ const DEFAULT_PREFIXES = [
   "helm",
   "curl",
   "wget",
+  "echo",
+  "openssl",
+  "update-ca-certificates",
   "ssh",
   "scp",
   "rsync",
@@ -73,7 +76,7 @@ function parseSingleCommand(lines, prefixes) {
     const trimmed = line.cleaned.trim();
     if (!current) {
       if (!trimmed) continue;
-      if (!isCommandStart(trimmed, prefixes)) continue;
+      if (!isCommandStart(trimmed, prefixes) && !looksLikeShellCommand(trimmed)) continue;
       current = createCandidate(line);
       const hereDocMarker = getHereDocMarker(trimmed);
       if (hereDocMarker) pendingHereDoc = { marker: hereDocMarker, lines: current.lines };
@@ -315,6 +318,27 @@ function isCommandStart(line, prefixes) {
 
   const token = firstToken(normalized);
   return prefixes.some((prefix) => token === prefix || token.startsWith(`${prefix}=`));
+}
+
+function looksLikeShellCommand(line) {
+  const normalized = stripLeadingCommandDecorators(line.trim());
+  if (!normalized || normalized.startsWith("#") || /[\u3400-\u9fff]/.test(normalized)) return false;
+  if (!hasShellLikeFirstToken(normalized)) return false;
+
+  return [
+    /(?:^|[\s)])(?:\|\||&&|\||[12]?>|>>|<)(?:\s|$)/,
+    /(?:^|\s)--[A-Za-z][A-Za-z0-9-]*(?:[=\s]|$)/,
+    /(?:^|\s)(?:\.{0,2}\/|~\/)[^\s]+/,
+    /(?:^|\s)[A-Za-z0-9._~-]+\/[A-Za-z0-9._~/-]+/,
+    /^[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|[^\s]+)\s+\S/
+  ].some((pattern) => pattern.test(normalized));
+}
+
+function hasShellLikeFirstToken(line) {
+  const token = firstToken(line);
+  if (!token) return false;
+  if (/^(?:\.{0,2}\/|~\/)[^\s]+/.test(token)) return true;
+  return /^[A-Za-z0-9_][A-Za-z0-9._+/-]*$/.test(token);
 }
 
 function stripLeadingCommandDecorators(line) {
@@ -590,6 +614,7 @@ function repairBrokenTokenWhitespace(text, stats, repairs) {
   output = repairCliLongOptionBreaks(output, stats, repairs);
   output = repairQuotedSqlLikeSegments(output, stats, repairs);
   output = repairQuotedPathLikeSegments(output, stats, repairs);
+  output = repairUnquotedHyphenatedPathBreaks(output, stats, repairs);
   output = repairQuotedLikelyTokenBreaks(output, stats, repairs);
   output = replaceAndTrack(output, new RegExp(`([/\\\\])\\s*${marker}\\s*([A-Za-z0-9._-])`, "g"), "$1$2", "path", stats, repairs);
   output = replaceAndTrack(output, new RegExp(`([A-Za-z0-9._-])\\s*${marker}\\s*([/\\\\])`, "g"), "$1$2", "path", stats, repairs);
@@ -613,6 +638,24 @@ function repairCliLongOptionBreaks(text, stats, repairs) {
     repairs.push({
       type: "option",
       before: visibleJoin(`${prefix} ${JOIN_MARK} ${suffix}`),
+      after: repaired
+    });
+    return `${boundary}${repaired}`;
+  });
+}
+
+function repairUnquotedHyphenatedPathBreaks(text, stats, repairs) {
+  const marker = JOIN_MARK;
+  const tokenChar = String.raw`[A-Za-z0-9._~+/@%\\-]`;
+  const pattern = new RegExp(`(^|[\\s=])(${tokenChar}*-)\\s*${marker}\\s*(${tokenChar}*[A-Za-z0-9_~+@%](?:[/\\\\]${tokenChar}*)?)(?=$|[\\s"';&|()<>])`, "g");
+
+  return text.replace(pattern, (match, boundary, left, right) => {
+    if (!/[\/\\]/.test(left) && !/[\/\\]/.test(right)) return match;
+    const repaired = `${left}${right}`;
+    stats.repairedBrokenTokens += 1;
+    repairs.push({
+      type: "path",
+      before: visibleJoin(`${left} ${JOIN_MARK} ${right}`),
       after: repaired
     });
     return `${boundary}${repaired}`;

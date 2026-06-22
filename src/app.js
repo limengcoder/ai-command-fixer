@@ -1,6 +1,6 @@
-import { parseCommands } from "./command-parser.js?v=default-edit-20260618";
-import { copyText } from "./clipboard.js?v=default-edit-20260618";
-import { EXAMPLE_INPUT } from "./examples.js?v=default-edit-20260618";
+import { parseCommands } from "./command-parser.js?v=single-fallback-20260622";
+import { copyText } from "./clipboard.js?v=single-fallback-20260622";
+import { EXAMPLE_INPUT } from "./examples.js?v=single-fallback-20260622";
 import {
   addLocalStash,
   clearLocalStash,
@@ -8,7 +8,7 @@ import {
   deleteLocalStashItem,
   loadLocalStash,
   STASH_TTL_OPTIONS
-} from "./local-stash.js?v=default-edit-20260618";
+} from "./local-stash.js?v=single-fallback-20260622";
 import {
   canEditResult,
   canStashResult,
@@ -19,8 +19,8 @@ import {
   getResultStashText,
   restoreResultAutoFixedText,
   updateResultCurrentText
-} from "./result-state.js?v=default-edit-20260618";
-import { clearPreferences, loadPreferences, savePreferences } from "./storage.js?v=default-edit-20260618";
+} from "./result-state.js?v=single-fallback-20260622";
+import { clearPreferences, loadPreferences, savePreferences } from "./storage.js?v=single-fallback-20260622";
 
 const elements = {
   input: document.querySelector("#inputText"),

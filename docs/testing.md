@@ -203,3 +203,17 @@ raw_responses r WHERE r.stat_date BETWEEN %s AND %s"; print({"out": str(out), "f
 - `citation_l ⏎ ist` 修复为 `citation_list`。
 - `platform_ ⏎ name` 修复为 `platform_name`。
 - `geo_ ⏎ raw_responses` 修复为 `geo_raw_responses`。
+
+### 用例 9：管道、重定向和证书导入长命令折行
+
+输入：
+
+echo | openssl s_client -showcerts -connect gitea.mstudios.cn:443 -servername gitea.mstudios.cn 2>/dev/null | sed -n '/BEGIN CERTIFICATE/,/END CERTIFICATE/p' > /usr/local/share/ca-
+  certificates/gitea-mstudios-cn.crt && update-ca-certificates
+
+预期重点：
+
+- 默认单命令模式识别为 1 条支持命令。
+- 命令保留 `echo | openssl s_client`、`2>/dev/null | sed -n` 和 `&& update-ca-certificates`。
+- 重定向路径修复为 `/usr/local/share/ca-certificates/gitea-mstudios-cn.crt`。
+- 不出现 `ca- certificates` 或 `ca- ⏎ certificates` 之类的断裂残留。

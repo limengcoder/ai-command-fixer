@@ -33,6 +33,43 @@ git status
   assert.equal(result.summary.supported, 1);
 });
 
+test("P0: recognizes folded certificate import pipeline as one supported command", () => {
+  const input = `echo | openssl s_client -showcerts -connect gitea.mstudios.cn:443 -servername gitea.mstudios.cn 2>/dev/null | sed -n '/BEGIN CERTIFICATE/,/END CERTIFICATE/p' > /usr/local/share/ca-
+  certificates/gitea-mstudios-cn.crt && update-ca-certificates`;
+
+  const result = parseCommands(input);
+
+  assert.equal(result.commands.length, 1);
+  assert.equal(result.commands[0].unsupported, false);
+  assert.equal(result.summary.supported, 1);
+  assert.match(result.commands[0].fixed, /echo \| openssl s_client/);
+  assert.match(result.commands[0].fixed, /2>\/dev\/null \| sed -n/);
+  assert.match(result.commands[0].fixed, /> \/usr\/local\/share\/ca-certificates\/gitea-mstudios-cn\.crt/);
+  assert.match(result.commands[0].fixed, /&& update-ca-certificates/);
+  assert.doesNotMatch(result.commands[0].fixed, /ca- certificates/);
+  assert.doesNotMatch(result.commands[0].fixed, /ca-\s+certificates/);
+});
+
+test("P0: fallback command detection ignores plain Chinese prose", () => {
+  const input = "这是一段纯中文说明文字，没有任何需要执行的终端命令。";
+
+  const result = parseCommands(input);
+
+  assert.equal(result.commands.length, 0);
+  assert.equal(result.summary.supported, 0);
+});
+
+test("P0: fallback command detection starts at cd without prepending prose", () => {
+  const input = `先进入项目目录后再执行检查：
+cd /srv/app && npm test`;
+
+  const result = parseCommands(input);
+
+  assert.equal(result.commands.length, 1);
+  assert.match(result.commands[0].fixed, /^cd \/srv\/app && npm test/);
+  assert.doesNotMatch(result.commands[0].fixed, /先进入项目目录/);
+});
+
 test("P0: can identify multiple commands when auto split mode is explicit", () => {
   const input = `先验证目录：
 cd /srv/app
@@ -90,6 +127,15 @@ EOF`;
   assert.equal(result.commands[0].unsupported, true);
   assert.match(result.commands[0].fixed, /hello\nworld/);
   assert.match(result.commands[0].notes.join(" "), /here-doc/);
+});
+
+test("P0: auto split mode does not use shell-like fallback starts", () => {
+  const input = `unknown-tool --write /tmp/demo
+echo ok`;
+
+  const result = parseCommands(input, { splitMode: "auto" });
+
+  assert.deepEqual(result.commands.map((item) => item.fixed), ["echo ok"]);
 });
 
 test("P0: flags high risk commands without blocking output", () => {
