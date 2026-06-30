@@ -387,6 +387,31 @@ select:focus {
   background: #fbfcfd;
 }
 
+.stash-title-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.stash-title-input {
+  min-width: 0;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0 10px;
+  font-weight: 800;
+}
+
+.stash-title-status {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .stash-meta {
   color: var(--muted);
   font-size: 12px;
@@ -524,18 +549,6 @@ select:focus {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   font-size: 13px;
   line-height: 1.55;
-}
-
-.copyable-block {
-  min-height: 150px;
-  cursor: pointer;
-  transition: outline-color 120ms ease;
-}
-
-.copyable-block:hover,
-.copyable-block:focus-visible {
-  outline: 2px solid rgba(15, 118, 110, 0.72);
-  outline-offset: 2px;
 }
 
 .result-editor {
@@ -701,5 +714,13 @@ select:focus {
   .stash-controls label {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .stash-title-row {
+    grid-template-columns: 1fr;
+  }
+
+  .stash-title-status {
+    white-space: normal;
   }
 }

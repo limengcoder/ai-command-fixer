@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-06-30 - Chinese repair coverage and titled local stash
+
+### Added
+
+- Added conservative repair rules for Chinese paths, filenames, quoted argument values, and SQL string values split by real newlines.
+- Added local stash titles: each stashed command gets a short generated title, and users can edit it inline.
+- Added compatibility for older v1 local stash entries without titles by filling a default title during local reads.
+
+### Changed
+
+- Local stash still uses browser-only `localStorage`; stashed entries now persist `title` alongside `id`, `command`, `createdAt`, and `expiresAt`.
+- Result copying is documented and presented through explicit copy buttons and **Copy all**, instead of click-result-to-copy.
+- Static asset query strings were refreshed to avoid stale browser resources.
+
+### Verification
+
+- Added parser and local stash regression tests for Chinese newline repairs, title generation, title editing, and legacy stash reads.
+
 ## 2026-06-12 - Open-source release documentation
 
 This documentation update prepares the project for a bilingual open-source release without changing product runtime behavior.
@@ -12,7 +30,7 @@ This documentation update prepares the project for a bilingual open-source relea
 - Added `docs/faq.md` with bilingual answers for default single-command behavior, here-doc limitations, privacy, analytics boundaries, multi-command handling, manual review, and future CLI/skill/plugin exploration.
 - Updated growth and content planning docs to align launch messaging with the MVP single-command-first scope.
 - Updated analytics event guidance to use MVP result-status events instead of multi-command count buckets.
-- Updated deployment checklist language to focus on single-command repair, per-result copy, click-result-to-copy, and privacy-safe analytics boundaries.
+- Updated deployment checklist language to focus on single-command repair, explicit copy actions, and privacy-safe analytics boundaries.
 
 ## 2026-06-12 - MVP long-command review
 
@@ -27,7 +45,6 @@ This release focuses on the core MVP workflow: repairing one long AI-generated t
 - Default single-command mode to avoid splitting long shell structures.
 - Backslash continuation merging for shell-style multi-line commands.
 - Repair highlights for automatic fixes.
-- Click-to-copy result blocks.
 - Per-result copy button.
 - Browser-local preferences for display options and custom command prefixes.
 - Risk hints for destructive command patterns such as `rm -rf`, `DROP TABLE`, `DROP DATABASE`, `mkfs`, and forced Docker prune.

@@ -233,6 +233,42 @@ test("P1: repairs folded filename tokens and strips macOS zsh prompts", () => {
   assert.equal(result.commands[0].stats.removedPrompts, 1);
 });
 
+test("P1: repairs Chinese path and filename breaks at real newlines", () => {
+  const input = `python3 ./import.py --file /home/报告/华东-
+  六月.csv`;
+
+  const result = parseCommands(input);
+
+  assert.equal(result.commands.length, 1);
+  assert.match(result.commands[0].fixed, /--file \/home\/报告\/华东-六月\.csv/);
+  assert.doesNotMatch(result.commands[0].fixed, /华东-\s+六月/);
+  assert.ok(result.commands[0].repairs.some((repair) => repair.type === "path"));
+});
+
+test("P1: repairs Chinese quoted argument breaks without joining English word spaces", () => {
+  const input = `python3 ./sync.py --name "上海
+  门店" --note "East China store"`;
+
+  const result = parseCommands(input);
+
+  assert.equal(result.commands.length, 1);
+  assert.match(result.commands[0].fixed, /--name "上海门店"/);
+  assert.match(result.commands[0].fixed, /--note "East China store"/);
+  assert.doesNotMatch(result.commands[0].fixed, /上海\s+门店/);
+  assert.ok(result.commands[0].repairs.some((repair) => repair.type === "cjk"));
+});
+
+test("P1: repairs Chinese SQL string value breaks conservatively", () => {
+  const input = `python3 -c 'sql="SELECT * FROM stores WHERE city=\\"上海
+  门店\\" AND region=\\"East China\\""; print(sql)'`;
+
+  const result = parseCommands(input);
+
+  assert.equal(result.commands.length, 1);
+  assert.match(result.commands[0].fixed, /city=\\"上海门店\\"/);
+  assert.match(result.commands[0].fixed, /region=\\"East China\\"/);
+});
+
 test("P1: only repairs high-confidence same-line token spaces", () => {
   const input = `python -c 'print("2026  -06-03"); print("jingdong_  20260609_temp10")'`;
   const result = parseCommands(input);

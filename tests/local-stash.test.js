@@ -5,9 +5,11 @@ import {
   addLocalStash,
   clearLocalStash,
   deleteLocalStashItem,
+  generateLocalStashTitle,
   loadLocalStash,
   LOCAL_STASH_KEY,
-  LOCAL_STASH_LIMIT
+  LOCAL_STASH_LIMIT,
+  updateLocalStashTitle
 } from "../src/local-stash.js";
 
 function createMemoryStorage(initial = {}) {
@@ -61,15 +63,39 @@ print('world')"`;
   assert.equal(rawItems[0].command, fixed);
   assert.equal(rawItems[0].createdAt, 1_000);
   assert.equal(rawItems[0].expiresAt, 86_401_000);
-  assert.deepEqual(Object.keys(rawItems[0]).sort(), ["command", "createdAt", "expiresAt", "id"]);
+  assert.equal(rawItems[0].title, "Python 片段");
+  assert.deepEqual(Object.keys(rawItems[0]).sort(), ["command", "createdAt", "expiresAt", "id", "title"]);
   assert.doesNotMatch(rawItems[0].command, /\n/);
+});
+
+test("local stash: load v1 items without title and fills a default title", () => {
+  const storage = createMemoryStorage();
+  seedStash(storage, [
+    { id: "legacy", command: "python scripts/import_sales.py --file /home/报告/华东-六月.csv", createdAt: 1_000, expiresAt: 9_000 }
+  ]);
+
+  const result = loadLocalStash({ storage, now: 2_000 });
+
+  assert.equal(result.items[0].title, "python import_sales.py");
+  assert.equal(readRawItems(storage)[0].title, "python import_sales.py");
+});
+
+test("local stash: generated titles stay short and editable titles persist", () => {
+  const storage = createMemoryStorage();
+  const saved = addLocalStash("git restore --source=FETCH_HEAD --worktree -- /home/报告/华东-六月.csv", "24h", { storage, now: 1_000 });
+  const updated = updateLocalStashTitle(saved.item.id, "华东六月报表恢复", { storage, now: 2_000 });
+
+  assert.equal(Array.from(generateLocalStashTitle("curl https://api.example.test/jobs --data '{}'")).length <= 32, true);
+  assert.equal(updated.status, "saved");
+  assert.equal(readRawItems(storage)[0].title, "华东六月报表恢复");
+  assert.equal(loadLocalStash({ storage, now: 2_000 }).items[0].title, "华东六月报表恢复");
 });
 
 test("local stash: load removes expired items and keeps active items", () => {
   const storage = createMemoryStorage();
   seedStash(storage, [
-    { id: "expired", command: "npm old", createdAt: 1_000, expiresAt: 1_999 },
-    { id: "active", command: "npm test", createdAt: 1_000, expiresAt: 3_000 }
+    { id: "expired", title: "旧命令", command: "npm old", createdAt: 1_000, expiresAt: 1_999 },
+    { id: "active", title: "测试命令", command: "npm test", createdAt: 1_000, expiresAt: 3_000 }
   ]);
 
   const result = loadLocalStash({ storage, now: 2_000 });

@@ -49,6 +49,7 @@ function hasLocalStashApi() {
     "LOCAL_STASH_KEY",
     "loadLocalStash",
     "addLocalStash",
+    "updateLocalStashTitle",
     "deleteLocalStashItem",
     "clearLocalStash"
   ].every((name) => name in stash);
@@ -66,6 +67,7 @@ test("local stash storage API exposes the agreed key and operations", () => {
   assert.equal(stash.LOCAL_STASH_KEY, EXPECTED_STASH_KEY);
   assert.equal(typeof stash.loadLocalStash, "function");
   assert.equal(typeof stash.addLocalStash, "function");
+  assert.equal(typeof stash.updateLocalStashTitle, "function");
   assert.equal(typeof stash.deleteLocalStashItem, "function");
   assert.equal(typeof stash.clearLocalStash, "function");
 });
@@ -101,12 +103,31 @@ ist"]; print(fields)'`;
     assert.equal(result.status, "saved");
     assert.equal(stored.version, 1);
     assert.equal(stored.items.length, 1);
-    assert.deepEqual(Object.keys(item).sort(), ["command", "createdAt", "expiresAt", "id"]);
+    assert.deepEqual(Object.keys(item).sort(), ["command", "createdAt", "expiresAt", "id", "title"]);
     assert.equal(item.command, fixed);
+    assert.equal(item.title, "Python 片段");
     assert.equal(item.createdAt, now);
     assert.equal(item.expiresAt, now + DAY_MS);
     assert.doesNotMatch(JSON.stringify(stored), /citation_l\s+ist/);
     assert.doesNotMatch(JSON.stringify(stored), /original|raw|before|repair|risk|note|stat|hash|source|url|path/i);
+  } finally {
+    cleanupWindowStorage();
+  }
+});
+
+test("active stash preserves editable local titles", (t) => {
+  if (skipUntilImplemented(t)) return;
+  const localStorage = installWindowStorage();
+  const now = 1_780_000_000_000;
+
+  try {
+    const saved = stash.addLocalStash("python scripts/import_sales.py --file /home/报告/华东-六月.csv", "24h", { storage: localStorage, now });
+    const updated = stash.updateLocalStashTitle(saved.item.id, "华东六月导入", { storage: localStorage, now });
+    const stored = JSON.parse(localStorage.getItem(EXPECTED_STASH_KEY));
+
+    assert.equal(updated.status, "saved");
+    assert.equal(stored.items[0].title, "华东六月导入");
+    assert.equal(stash.loadLocalStash({ storage: localStorage, now }).items[0].title, "华东六月导入");
   } finally {
     cleanupWindowStorage();
   }

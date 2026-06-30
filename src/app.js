@@ -1,14 +1,15 @@
-import { parseCommands } from "./command-parser.js?v=single-fallback-20260622";
-import { copyText } from "./clipboard.js?v=single-fallback-20260622";
-import { EXAMPLE_INPUT } from "./examples.js?v=single-fallback-20260622";
+import { parseCommands } from "./command-parser.js?v=cjk-stash-title-20260630";
+import { copyText } from "./clipboard.js?v=cjk-stash-title-20260630";
+import { EXAMPLE_INPUT } from "./examples.js?v=cjk-stash-title-20260630";
 import {
   addLocalStash,
   clearLocalStash,
   DEFAULT_STASH_TTL,
   deleteLocalStashItem,
   loadLocalStash,
-  STASH_TTL_OPTIONS
-} from "./local-stash.js?v=single-fallback-20260622";
+  STASH_TTL_OPTIONS,
+  updateLocalStashTitle
+} from "./local-stash.js?v=cjk-stash-title-20260630";
 import {
   canEditResult,
   canStashResult,
@@ -19,8 +20,8 @@ import {
   getResultStashText,
   restoreResultAutoFixedText,
   updateResultCurrentText
-} from "./result-state.js?v=single-fallback-20260622";
-import { clearPreferences, loadPreferences, savePreferences } from "./storage.js?v=single-fallback-20260622";
+} from "./result-state.js?v=cjk-stash-title-20260630";
+import { clearPreferences, loadPreferences, savePreferences } from "./storage.js?v=cjk-stash-title-20260630";
 
 const elements = {
   input: document.querySelector("#inputText"),
@@ -207,22 +208,6 @@ function renderCommandCard(command, index) {
   } else {
     const fixed = createCodeBlock(getResultCopyText(command));
     fixed.setAttribute("aria-label", command.unsupported ? `命令 ${index + 1} 未修复原文` : `命令 ${index + 1} 修复结果`);
-    fixed.classList.add("copyable-block");
-    fixed.tabIndex = 0;
-    fixed.setAttribute("role", "button");
-    fixed.setAttribute(
-      "aria-label",
-      command.unsupported ? `命令 ${index + 1} 原文，点击或按回车复制` : `命令 ${index + 1} 修复结果，点击或按回车复制`
-    );
-    fixed.addEventListener("click", () => {
-      copyResultBlock(index, getResultCopyText(latestCommands[index]));
-    });
-    fixed.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        copyResultBlock(index, getResultCopyText(latestCommands[index]));
-      }
-    });
     body.appendChild(fixed);
   }
 
@@ -325,6 +310,11 @@ function getRepairMeta(repair) {
       label: "路径断点",
       help: "识别为路径片段被换行打断，已合并路径。"
     },
+    cjk: {
+      group: "review",
+      label: "中文字符串",
+      help: "已移除引号内中文参数值真实换行产生的空白，建议核对名称语义。"
+    },
     option: {
       group: "auto",
       label: "命令参数名断点",
@@ -424,6 +414,38 @@ function renderStashItem(item) {
   const row = document.createElement("article");
   row.className = "stash-item";
 
+  const titleRow = document.createElement("div");
+  titleRow.className = "stash-title-row";
+
+  const titleInput = document.createElement("input");
+  titleInput.className = "stash-title-input";
+  titleInput.type = "text";
+  titleInput.value = item.title;
+  titleInput.maxLength = 32;
+  titleInput.setAttribute("aria-label", "暂存标题");
+
+  const titleStatus = document.createElement("span");
+  titleStatus.className = "stash-title-status";
+  titleStatus.textContent = "可编辑";
+
+  titleInput.addEventListener("input", () => {
+    const value = titleInput.value.trim();
+    if (!value) {
+      titleStatus.textContent = "失焦后补默认标题";
+      return;
+    }
+    saveStashTitle(item.id, value, titleStatus);
+  });
+  titleInput.addEventListener("blur", () => {
+    if (!titleInput.value.trim()) {
+      const result = saveStashTitle(item.id, "", titleStatus);
+      const updated = result?.items.find((stashItem) => stashItem.id === item.id);
+      if (updated) titleInput.value = updated.title;
+    }
+  });
+
+  titleRow.append(titleInput, titleStatus);
+
   const meta = document.createElement("div");
   meta.className = "stash-meta";
   meta.textContent = `创建 ${formatDateTime(item.createdAt)} · 过期 ${formatDateTime(item.expiresAt)}`;
@@ -453,8 +475,22 @@ function renderStashItem(item) {
   });
 
   actions.append(copyButton, deleteButton);
-  row.append(meta, code, actions);
+  row.append(titleRow, meta, code, actions);
   return row;
+}
+
+function saveStashTitle(id, title, statusElement) {
+  const result = updateLocalStashTitle(id, title);
+  if (result.status === "saved" || result.status === "unchanged") {
+    localStashItems = result.items;
+    statusElement.textContent = result.status === "saved" ? "已保存" : "无变化";
+    renderStashMessage("暂存标题已保存到当前浏览器本地。", "success");
+    return result;
+  }
+
+  statusElement.textContent = "保存失败";
+  renderStashMessage("当前浏览器无法访问 localStorage，标题保存失败。", "warning");
+  return result;
 }
 
 function stashFixedCommand(button, command) {
@@ -520,15 +556,6 @@ async function copyAllCommands() {
   const skipped = latestCommands.length - supported.length;
   if (skipped > 0) {
     renderStatus(`已复制 ${supported.length} 条命令，跳过 ${skipped} 条不支持的多行结构。`, "warning");
-  }
-}
-
-async function copyResultBlock(index, text) {
-  try {
-    await copyText(text);
-    renderStatus(`已复制命令 ${index + 1}。`, "success");
-  } catch {
-    renderStatus("复制失败，请手动选中结果复制。", "warning");
   }
 }
 

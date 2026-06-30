@@ -304,7 +304,7 @@ function buildNotes(stats, original, fixed) {
   if (stats.removedContinuations > 0) notes.push(`移除 ${stats.removedContinuations} 处反斜杠续行。`);
   if (stats.removedPrompts > 0) notes.push(`移除 ${stats.removedPrompts} 处终端提示符。`);
   if (stats.normalizedWhitespace > 0) notes.push(`归一 ${stats.normalizedWhitespace} 处多余空白。`);
-  if (stats.repairedBrokenTokens > 0) notes.push(`修复 ${stats.repairedBrokenTokens} 处日期、路径、字段名、文件名或命令参数名断点。`);
+  if (stats.repairedBrokenTokens > 0) notes.push(`修复 ${stats.repairedBrokenTokens} 处日期、路径、字段名、文件名、中文参数值或命令参数名断点。`);
   if (notes.length === 0 && original === fixed) notes.push("未发现需要修复的折行。");
   return notes;
 }
@@ -614,6 +614,7 @@ function repairBrokenTokenWhitespace(text, stats, repairs) {
   output = repairCliLongOptionBreaks(output, stats, repairs);
   output = repairQuotedSqlLikeSegments(output, stats, repairs);
   output = repairQuotedPathLikeSegments(output, stats, repairs);
+  output = repairQuotedCjkStringBreaks(output, stats, repairs);
   output = repairUnquotedHyphenatedPathBreaks(output, stats, repairs);
   output = repairQuotedLikelyTokenBreaks(output, stats, repairs);
   output = replaceAndTrack(output, new RegExp(`([/\\\\])\\s*${marker}\\s*([A-Za-z0-9._-])`, "g"), "$1$2", "path", stats, repairs);
@@ -622,6 +623,7 @@ function repairBrokenTokenWhitespace(text, stats, repairs) {
   output = replaceAndTrack(output, new RegExp(`([A-Za-z0-9])\\s*${marker}\\s*_([A-Za-z0-9])`, "g"), "$1_$2", "token", stats, repairs);
   output = replaceAndTrack(output, new RegExp(`([A-Za-z0-9])\\.\\s*${marker}\\s*([A-Za-z0-9])`, "g"), "$1.$2", "token", stats, repairs);
   output = replaceAndTrack(output, new RegExp(`([A-Za-z0-9])\\s*${marker}\\s*\\.([A-Za-z0-9])`, "g"), "$1.$2", "token", stats, repairs);
+  output = replaceAndTrack(output, new RegExp(`([\\p{Script=Han}])\\s*${marker}\\s*([\\p{Script=Han}])`, "gu"), "$1$2", "cjk", stats, repairs);
   output = repairQuotedLikelyTokenSpaces(output, stats, repairs);
   output = output.replace(new RegExp(`\\s*${marker}\\s*`, "g"), " ");
 
@@ -646,8 +648,8 @@ function repairCliLongOptionBreaks(text, stats, repairs) {
 
 function repairUnquotedHyphenatedPathBreaks(text, stats, repairs) {
   const marker = JOIN_MARK;
-  const tokenChar = String.raw`[A-Za-z0-9._~+/@%\\-]`;
-  const pattern = new RegExp(`(^|[\\s=])(${tokenChar}*-)\\s*${marker}\\s*(${tokenChar}*[A-Za-z0-9_~+@%](?:[/\\\\]${tokenChar}*)?)(?=$|[\\s"';&|()<>])`, "g");
+  const tokenChar = String.raw`[\p{L}\p{N}._~+/@%\\-]`;
+  const pattern = new RegExp(`(^|[\\s=])(${tokenChar}*-)\\s*${marker}\\s*(${tokenChar}*[\\p{L}\\p{N}_~+@%](?:[/\\\\]${tokenChar}*)?)(?=$|[\\s"';&|()<>])`, "gu");
 
   return text.replace(pattern, (match, boundary, left, right) => {
     if (!/[\/\\]/.test(left) && !/[\/\\]/.test(right)) return match;
@@ -807,17 +809,38 @@ function repairQuotedPathLikeSegments(text, stats, repairs) {
 }
 
 function looksPathLike(body) {
-  return /[\\/]/.test(body) && /(?:\.[A-Za-z0-9]{1,8}\b|[_/\\][A-Za-z0-9])/.test(body);
+  return /[\\/]/.test(body) && /(?:\.[A-Za-z0-9]{1,8}\b|[_/\\][\p{L}\p{N}])/u.test(body);
 }
 
 function repairPathLikeBody(body) {
   return body
-    .replace(new RegExp(`([/\\\\])\\s*${JOIN_MARK}\\s*([A-Za-z0-9._-])`, "g"), "$1$2")
-    .replace(new RegExp(`([A-Za-z0-9._-])\\s*${JOIN_MARK}\\s*([/\\\\])`, "g"), "$1$2")
+    .replace(new RegExp(`([/\\\\])\\s*${JOIN_MARK}\\s*([\\p{L}\\p{N}._-])`, "gu"), "$1$2")
+    .replace(new RegExp(`([\\p{L}\\p{N}._-])\\s*${JOIN_MARK}\\s*([/\\\\])`, "gu"), "$1$2")
     .replace(new RegExp(`([A-Za-z0-9])_\\s*${JOIN_MARK}\\s*([A-Za-z0-9])`, "g"), "$1_$2")
     .replace(new RegExp(`([A-Za-z0-9])\\s*${JOIN_MARK}\\s*_([A-Za-z0-9])`, "g"), "$1_$2")
-    .replace(new RegExp(`([A-Za-z0-9])\\.\\s*${JOIN_MARK}\\s*([A-Za-z0-9])`, "g"), "$1.$2")
-    .replace(new RegExp(`([A-Za-z0-9])\\s*${JOIN_MARK}\\s*\\.([A-Za-z0-9])`, "g"), "$1.$2");
+    .replace(new RegExp(`([\\p{L}\\p{N}])\\.\\s*${JOIN_MARK}\\s*([\\p{L}\\p{N}])`, "gu"), "$1.$2")
+    .replace(new RegExp(`([\\p{L}\\p{N}])\\s*${JOIN_MARK}\\s*\\.([\\p{L}\\p{N}])`, "gu"), "$1.$2")
+    .replace(new RegExp(`([\\p{L}\\p{N}])-\\s*${JOIN_MARK}\\s*([\\p{L}\\p{N}])`, "gu"), "$1-$2")
+    .replace(new RegExp(`([\\p{Script=Han}])\\s*${JOIN_MARK}\\s*([\\p{Script=Han}])`, "gu"), "$1$2");
+}
+
+function repairQuotedCjkStringBreaks(text, stats, repairs) {
+  return text.replace(/(["'])([^"']+)(\1)/g, (match, open, body, close) => {
+    if (!body.includes(JOIN_MARK) || !hasCjkJoinBreak(body)) return match;
+    const repaired = body.replace(new RegExp(`([\\p{Script=Han}])\\s*${JOIN_MARK}\\s*([\\p{Script=Han}])`, "gu"), "$1$2");
+    if (repaired === body) return match;
+    stats.repairedBrokenTokens += 1;
+    repairs.push({
+      type: "cjk",
+      before: visibleJoin(body),
+      after: repaired
+    });
+    return `${open}${repaired}${close}`;
+  });
+}
+
+function hasCjkJoinBreak(body) {
+  return new RegExp(`[\\p{Script=Han}]\\s*${JOIN_MARK}\\s*[\\p{Script=Han}]`, "u").test(body);
 }
 
 function visibleJoin(text) {

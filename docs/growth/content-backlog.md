@@ -172,7 +172,7 @@ Gallery screenshot list:
 
 - Paste AI response or one long command.
 - Python `-c` SQL line break fixed.
-- Per-result copy and click-result-to-copy.
+- Per-result copy, Copy all, and editable result review.
 - Risk hint on dangerous command.
 - Privacy badges: local-first, no uploads, no history.
 
@@ -308,7 +308,7 @@ Product Hunt：
 - Added local-first command line break fixing.
 - Added single-command-first repair for pasted AI responses or long commands.
 - Added support for Python `-c`, SQL line breaks, JSON arguments, and backslash continuations.
-- Added per-result copy and click-result-to-copy.
+- Added per-result copy, Copy all, and editable result review.
 - Added here-doc detection as unsupported.
 - Added risk hints for dangerous commands.
 - Added local preferences without command history storage.

@@ -145,7 +145,8 @@ rg -n "fetch\\(|XMLHttpRequest|sendBeacon|gtag\\(|analytics|posthog|hotjar|logro
 - JSON 参数命令能合并。
 - `<<EOF` 被提示为暂不支持，不自动修复。
 - `rm -rf`、`DROP DATABASE` 等高风险内容有提示。
-- 单条复制按钮和点击结果框复制可用。
+- 单条复制按钮和“复制全部”可用，结果编辑框本身不承担点击复制。
+- 主动暂存后会生成可编辑短标题，标题修改刷新后仍保留。
 - 只有多条可支持命令时才出现“复制全部”；默认单命令场景不应把它作为主流程。
 - 刷新页面后不会恢复上一条命令内容。
 - 偏好设置刷新后仍保留。
@@ -166,6 +167,6 @@ rg -n "fetch\\(|XMLHttpRequest|sendBeacon|gtag\\(|analytics|posthog|hotjar|logro
 - 没有把命令写入 URL、URL hash 或分享链接。
 - 没有第三方分析脚本默认采集输入内容、DOM 快照、剪贴板内容或表单内容。
 - 如接入 GSC、GA 等工具，事件参数不能包含命令内容、命令派生文本、精确长度、路径、token 或自定义前缀文本。
-- 没有把原始命令、修复命令、命令历史记录写入 localStorage 或 sessionStorage。
-- 仅保存偏好、自定义规则和 UI 设置。
+- 没有把原始命令、自动命令历史记录写入 localStorage 或 sessionStorage。
+- 仅保存偏好、自定义规则、UI 设置，以及用户主动暂存的修复后命令和可编辑短标题。
 - 构建产物可直接作为静态文件访问。
