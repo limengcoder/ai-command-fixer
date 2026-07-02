@@ -312,12 +312,77 @@ function buildNotes(stats, original, fixed) {
 function isCommandStart(line, prefixes) {
   const normalized = stripLeadingCommandDecorators(line.trim());
   if (!normalized || normalized.startsWith("#")) return false;
+  if (isCronCommandStart(normalized, prefixes)) return true;
   if (/^(?:for|if|while|until|case|select)\b/.test(normalized)) return true;
   if (/^(?:\.{0,2}\/)[^\s]+/.test(normalized)) return true;
   if (/^[\w.-]+\/[\w./-]+\.(?:py|sh|js|mjs|cjs|ts)(?:\s|$)/.test(normalized)) return true;
 
   const token = firstToken(normalized);
   return prefixes.some((prefix) => token === prefix || token.startsWith(`${prefix}=`));
+}
+
+function isCronCommandStart(line, prefixes) {
+  const match = line.match(/^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(.+)$/);
+  if (!match) return false;
+
+  const [, minute, hour, dayOfMonth, month, dayOfWeek, body] = match;
+  const fields = [
+    [minute, "minute"],
+    [hour, "hour"],
+    [dayOfMonth, "dayOfMonth"],
+    [month, "month"],
+    [dayOfWeek, "dayOfWeek"]
+  ];
+
+  if (!fields.every(([field, type]) => isCronTimeField(field, type))) return false;
+  return looksLikeCronShellBody(body.trim(), prefixes);
+}
+
+function isCronTimeField(field, type) {
+  if (!field || field.includes("=")) return false;
+  return field.split(",").every((part) => isCronTimePart(part, type));
+}
+
+function isCronTimePart(part, type) {
+  const stepParts = part.split("/");
+  if (stepParts.length > 2) return false;
+  const [range, step] = stepParts;
+  if (step !== undefined && !/^\d+$/.test(step)) return false;
+  if (!range) return false;
+  if (range === "*") return true;
+
+  const bounds = range.split("-");
+  if (bounds.length > 2) return false;
+  return bounds.every((bound) => isCronTimeBound(bound, type));
+}
+
+function isCronTimeBound(bound, type) {
+  if (/^\d+$/.test(bound)) return isCronNumericBound(Number(bound), type);
+  if (type === "month") return /^(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)$/i.test(bound);
+  if (type === "dayOfWeek") return /^(?:SUN|MON|TUE|WED|THU|FRI|SAT)$/i.test(bound);
+  return false;
+}
+
+function isCronNumericBound(value, type) {
+  if (!Number.isInteger(value)) return false;
+  if (type === "minute") return value >= 0 && value <= 59;
+  if (type === "hour") return value >= 0 && value <= 23;
+  if (type === "dayOfMonth") return value >= 1 && value <= 31;
+  if (type === "month") return value >= 1 && value <= 12;
+  if (type === "dayOfWeek") return value >= 0 && value <= 7;
+  return false;
+}
+
+function looksLikeCronShellBody(body, prefixes) {
+  if (!body || /[\u3400-\u9fff]/.test(body)) return false;
+  if (isCommandStart(body, prefixes)) return true;
+
+  return [
+    /(?:^|[\s)])(?:\|\||&&|\||[12]?>|>>|<)(?:\s|$)/,
+    /(?:^|\s)(?:\.{0,2}\/|~\/)[^\s]+/,
+    /(?:^|\s)[A-Za-z0-9._~-]+\/[A-Za-z0-9._~/-]+/,
+    /\b(?:python3?|bash|sh|zsh|curl|wget|node|npm|npx|pnpm|yarn|git|docker|kubectl)\b/
+  ].some((pattern) => pattern.test(body));
 }
 
 function looksLikeShellCommand(line) {

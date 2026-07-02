@@ -15,6 +15,7 @@ npm test
 - P0：多命令识别作为后置能力，仍需能从整段 AI 回复中识别多条命令并忽略说明文字。
 - P0：反斜杠续行合并。
 - P0：JSON 参数命令合并。
+- P0：crontab 五段时间字段条目识别，支持 cron 命令主体被复制折行后合并为一条命令。
 - P0：`<<EOF` / here-doc 标记为不支持且不压缩。
 - P0：`rm -rf` 等高风险命令提示。
 - P1：Markdown 代码块边界移除。
@@ -187,7 +188,20 @@ exports/future_vision_20260606_20260612_raw.csv"); print(out)'
 - `raw_ ⏎ exports` 修复为 `raw_exports`。
 - 路径斜杠结构保留。
 
-### 用例 8：混合字段名、日期、文件名和表名断开
+### 用例 8：crontab 条目路径折行
+
+输入：
+
+*/15 6-16 * * * cd /home/magneto/app/geo && /home/venvs/geo/bin/python scripts/create_deep_anji_analysis_when_ready.py --date "$(date -I)" >> /home/magneto/
+  app/geo/logs/deep_anji_analysis_ready_check.cron.log 2>&1
+
+预期重点：
+
+- 保留开头 `*/15 6-16 * * *` cron 时间字段。
+- 整条 crontab entry 只输出为 1 条命令。
+- `/home/magneto/ ⏎ app/geo/...` 修复为 `/home/magneto/app/geo/...`。
+
+### 用例 9：混合字段名、日期、文件名和表名断开
 
 输入：
 
@@ -207,7 +221,7 @@ raw_responses r WHERE r.stat_date BETWEEN %s AND %s"; print({"out": str(out), "f
 - `platform_ ⏎ name` 修复为 `platform_name`。
 - `geo_ ⏎ raw_responses` 修复为 `geo_raw_responses`。
 
-### 用例 9：管道、重定向和证书导入长命令折行
+### 用例 10：管道、重定向和证书导入长命令折行
 
 输入：
 

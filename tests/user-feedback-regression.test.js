@@ -66,3 +66,43 @@ git status`;
     "git status"
   ]);
 });
+
+test("feedback: preserves folded crontab entry as one command", () => {
+  const input = `*/15 6-16 * * * cd /home/magneto/app/geo && /home/venvs/geo/bin/python scripts/create_deep_anji_analysis_when_ready.py --date "$(date -I)" >> /home/magneto/
+  app/geo/logs/deep_anji_analysis_ready_check.cron.log 2>&1`;
+
+  const result = parseCommands(input);
+  const fixed = result.commands[0]?.fixed ?? "";
+
+  assert.equal(result.commands.length, 1);
+  assert.equal(
+    fixed,
+    `*/15 6-16 * * * cd /home/magneto/app/geo && /home/venvs/geo/bin/python scripts/create_deep_anji_analysis_when_ready.py --date "$(date -I)" >> /home/magneto/app/geo/logs/deep_anji_analysis_ready_check.cron.log 2>&1`
+  );
+  assert.match(fixed, /^\*\/15 6-16 \* \* \* cd /);
+  assert.doesNotMatch(fixed, /\/home\/magneto\/\s+app\/geo/);
+});
+
+test("feedback: auto split mode treats cron entries as command starts", () => {
+  const input = `准备定时任务：
+*/15 6-16 * * * cd /home/magneto/app/geo && /home/venvs/geo/bin/python scripts/create_deep_anji_analysis_when_ready.py --date "$(date -I)" >> /home/magneto/
+  app/geo/logs/deep_anji_analysis_ready_check.cron.log 2>&1
+git status`;
+
+  const result = parseCommands(input, { splitMode: "auto" });
+
+  assert.deepEqual(result.commands.map((item) => item.fixed), [
+    `*/15 6-16 * * * cd /home/magneto/app/geo && /home/venvs/geo/bin/python scripts/create_deep_anji_analysis_when_ready.py --date "$(date -I)" >> /home/magneto/app/geo/logs/deep_anji_analysis_ready_check.cron.log 2>&1`,
+    "git status"
+  ]);
+});
+
+test("feedback: does not treat prose after five cron-like fields as a command", () => {
+  const input = `*/15 6-16 * * * every fifteen minutes during the work day
+This is only a scheduling note, not a shell command.`;
+
+  const result = parseCommands(input);
+
+  assert.equal(result.commands.length, 0);
+  assert.equal(result.summary.supported, 0);
+});

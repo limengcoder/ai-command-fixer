@@ -1,6 +1,6 @@
-import { parseCommands } from "./command-parser.js?v=cjk-stash-title-20260630";
-import { copyText } from "./clipboard.js?v=cjk-stash-title-20260630";
-import { EXAMPLE_INPUT } from "./examples.js?v=cjk-stash-title-20260630";
+import { parseCommands } from "./command-parser.js?v=cron-entry-folding-20260702";
+import { copyText } from "./clipboard.js?v=cron-entry-folding-20260702";
+import { EXAMPLE_INPUT } from "./examples.js?v=cron-entry-folding-20260702";
 import {
   addLocalStash,
   clearLocalStash,
@@ -9,7 +9,7 @@ import {
   loadLocalStash,
   STASH_TTL_OPTIONS,
   updateLocalStashTitle
-} from "./local-stash.js?v=cjk-stash-title-20260630";
+} from "./local-stash.js?v=cron-entry-folding-20260702";
 import {
   canEditResult,
   canStashResult,
@@ -20,8 +20,8 @@ import {
   getResultStashText,
   restoreResultAutoFixedText,
   updateResultCurrentText
-} from "./result-state.js?v=cjk-stash-title-20260630";
-import { clearPreferences, loadPreferences, savePreferences } from "./storage.js?v=cjk-stash-title-20260630";
+} from "./result-state.js?v=cron-entry-folding-20260702";
+import { clearPreferences, loadPreferences, savePreferences } from "./storage.js?v=cron-entry-folding-20260702";
 
 const elements = {
   input: document.querySelector("#inputText"),

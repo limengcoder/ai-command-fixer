@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-07-02 - Cron entry folding support
+
+### Added
+
+- Added conservative crontab entry detection for five-field cron schedules followed by shell-like command bodies.
+- Added regression coverage for folded cron log paths and a prose counterexample that must not be parsed as a command.
+
+### Changed
+
+- Static asset query strings were refreshed to avoid stale browser resources.
+
 ## 2026-06-30 - Chinese repair coverage and titled local stash
 
 ### Added
