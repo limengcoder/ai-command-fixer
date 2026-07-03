@@ -106,3 +106,39 @@ This is only a scheduling note, not a shell command.`;
   assert.equal(result.commands.length, 0);
   assert.equal(result.summary.supported, 0);
 });
+
+test("feedback: escapes literal percent in PyMySQL execute_query SQL string", () => {
+  const input = `cd /home/magneto/app/geo && /home/venvs/geo/bin/python -c "from dotenv import load_dotenv; load_dotenv('.env'); from models.database import get_db; db=get_db(); rows=db.execute_query(\\"SELECT batch_code, platform_name, COUNT(*) raw_cnt, COUNT(DISTINCT question_id) questions, SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) completed_cnt FROM geo_raw_responses r JOIN geo_customers c ON c.id=r.customer_id WHERE c.customer_code='deep_anji' AND r.stat_date='2026-07-03' AND r.batch_code LIKE 'deep_anji_20260703_daily_%' GROUP BY batch_code, platform_name ORDER BY batch_code, platform_name\\"); [print(r) for r in rows]"`;
+
+  const result = parseCommands(input);
+  const fixed = result.commands[0]?.fixed ?? "";
+
+  assert.equal(result.commands.length, 1);
+  assert.match(fixed, /LIKE 'deep_anji_20260703_daily_%%'/);
+  assert.doesNotMatch(fixed, /LIKE 'deep_anji_20260703_daily_%' GROUP/);
+  assert.ok(result.commands[0].repairs.some((repair) => repair.type === "pymysql-percent"));
+});
+
+test("feedback: keeps PyMySQL placeholders and params tuple percent values unchanged", () => {
+  const input = `cd /home/magneto/app/geo && /home/venvs/geo/bin/python -c 'from models.database import get_db; db=get_db(); rows=db.execute_query("SELECT * FROM geo_raw_responses WHERE batch_code LIKE %s", ("deep_anji_20260703_daily_%",)); print(rows)'`;
+
+  const result = parseCommands(input);
+  const fixed = result.commands[0]?.fixed ?? "";
+
+  assert.equal(result.commands.length, 1);
+  assert.match(fixed, /LIKE %s", \("deep_anji_20260703_daily_%",\)/);
+  assert.doesNotMatch(fixed, /LIKE %%s/);
+  assert.equal(result.commands[0].repairs.some((repair) => repair.type === "pymysql-percent"), false);
+});
+
+test("feedback: does not double-escape existing PyMySQL literal percent escapes", () => {
+  const input = `cd /home/magneto/app/geo && /home/venvs/geo/bin/python -c 'from models.database import get_db; db=get_db(); rows=db.execute_query("SELECT * FROM geo_raw_responses WHERE batch_code LIKE 'foo%%'"); print(rows)'`;
+
+  const result = parseCommands(input);
+  const fixed = result.commands[0]?.fixed ?? "";
+
+  assert.equal(result.commands.length, 1);
+  assert.match(fixed, /LIKE 'foo%%'/);
+  assert.doesNotMatch(fixed, /foo%%%%/);
+  assert.equal(result.commands[0].repairs.some((repair) => repair.type === "pymysql-percent"), false);
+});

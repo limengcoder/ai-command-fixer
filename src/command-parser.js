@@ -247,7 +247,8 @@ function buildSupported(lines) {
     removedContinuations: 0,
     removedPrompts: lines.filter((line) => line.promptRemoved).length,
     normalizedWhitespace: 0,
-    repairedBrokenTokens: 0
+    repairedBrokenTokens: 0,
+    repairedPyMySqlPercents: 0
   };
   const repairs = [];
 
@@ -293,7 +294,8 @@ function buildUnsupported(lines, reason) {
       removedContinuations: 0,
       removedPrompts: lines.filter((line) => line.promptRemoved).length,
       normalizedWhitespace: 0,
-      repairedBrokenTokens: 0
+      repairedBrokenTokens: 0,
+      repairedPyMySqlPercents: 0
     }
   };
 }
@@ -305,6 +307,7 @@ function buildNotes(stats, original, fixed) {
   if (stats.removedPrompts > 0) notes.push(`移除 ${stats.removedPrompts} 处终端提示符。`);
   if (stats.normalizedWhitespace > 0) notes.push(`归一 ${stats.normalizedWhitespace} 处多余空白。`);
   if (stats.repairedBrokenTokens > 0) notes.push(`修复 ${stats.repairedBrokenTokens} 处日期、路径、字段名、文件名、中文参数值或命令参数名断点。`);
+  if (stats.repairedPyMySqlPercents > 0) notes.push(`转义 ${stats.repairedPyMySqlPercents} 处 PyMySQL SQL 字符串字面量百分号。`);
   if (notes.length === 0 && original === fixed) notes.push("未发现需要修复的折行。");
   return notes;
 }
@@ -678,6 +681,7 @@ function repairBrokenTokenWhitespace(text, stats, repairs) {
   output = replaceAndTrack(output, new RegExp(`\\b(\\d{4})-(\\d{2})-\\s*${marker}\\s*(\\d{2})\\b`, "g"), "$1-$2-$3", "date", stats, repairs);
   output = repairCliLongOptionBreaks(output, stats, repairs);
   output = repairQuotedSqlLikeSegments(output, stats, repairs);
+  output = repairPyMySqlExecuteQueryPercents(output, stats, repairs);
   output = repairQuotedPathLikeSegments(output, stats, repairs);
   output = repairQuotedCjkStringBreaks(output, stats, repairs);
   output = repairUnquotedHyphenatedPathBreaks(output, stats, repairs);
@@ -808,6 +812,153 @@ function repairSqlLikeBody(body) {
       if (isSqlKeyword(left) || isSqlKeyword(right)) return match;
       return `${left}${right}`;
     });
+}
+
+function repairPyMySqlExecuteQueryPercents(text, stats, repairs) {
+  let output = "";
+  let cursor = 0;
+
+  while (cursor < text.length) {
+    const callIndex = text.indexOf("execute_query", cursor);
+    if (callIndex === -1) break;
+
+    const openParenIndex = findCallOpenParen(text, callIndex + "execute_query".length);
+    if (openParenIndex === -1) {
+      cursor = callIndex + "execute_query".length;
+      continue;
+    }
+
+    const stringRange = findFirstPythonStringArgument(text, openParenIndex + 1);
+    if (!stringRange) {
+      cursor = openParenIndex + 1;
+      continue;
+    }
+
+    const repairedBody = escapePyMySqlLiteralPercents(stringRange.body);
+    if (repairedBody === stringRange.body) {
+      cursor = stringRange.end;
+      continue;
+    }
+
+    output += text.slice(cursor, stringRange.bodyStart);
+    output += repairedBody;
+    stats.repairedPyMySqlPercents += 1;
+    repairs.push({
+      type: "pymysql-percent",
+      before: trimRepairPreview(stringRange.body),
+      after: trimRepairPreview(repairedBody)
+    });
+    cursor = stringRange.bodyEnd;
+  }
+
+  return output ? output + text.slice(cursor) : text;
+}
+
+function findCallOpenParen(text, start) {
+  let index = start;
+  while (index < text.length && /\s/.test(text[index])) index += 1;
+  return text[index] === "(" ? index : -1;
+}
+
+function findFirstPythonStringArgument(text, start) {
+  let index = start;
+  while (index < text.length && /\s/.test(text[index])) index += 1;
+
+  let shellEscapedDelimiter = false;
+  if (text[index] === "\\" && (text[index + 1] === '"' || text[index + 1] === "'")) {
+    shellEscapedDelimiter = true;
+    index += 1;
+  }
+
+  const quote = text[index];
+  if (quote !== '"' && quote !== "'") return null;
+
+  const bodyStart = index + 1;
+  let cursor = bodyStart;
+  while (cursor < text.length) {
+    if (shellEscapedDelimiter && text[cursor] === "\\" && text[cursor + 1] === quote && isPythonArgumentBoundary(text, cursor + 2)) {
+      return {
+        body: text.slice(bodyStart, cursor),
+        bodyStart,
+        bodyEnd: cursor,
+        end: cursor + 2
+      };
+    }
+
+    if (text[cursor] !== quote) {
+      cursor += text[cursor] === "\\" ? 2 : 1;
+      continue;
+    }
+
+    if (shellEscapedDelimiter) {
+      if (text[cursor - 1] === "\\" && !isEscapedBackslash(text, cursor - 1)) {
+        return {
+          body: text.slice(bodyStart, cursor - 1),
+          bodyStart,
+          bodyEnd: cursor - 1,
+          end: cursor + 1
+        };
+      }
+      cursor += 1;
+      continue;
+    }
+
+    if (!isEscapedBackslash(text, cursor)) {
+      return {
+        body: text.slice(bodyStart, cursor),
+        bodyStart,
+        bodyEnd: cursor,
+        end: cursor + 1
+      };
+    }
+    cursor += 1;
+  }
+
+  return null;
+}
+
+function isPythonArgumentBoundary(text, start) {
+  let index = start;
+  while (index < text.length && /\s/.test(text[index])) index += 1;
+  return text[index] === "," || text[index] === ")";
+}
+
+function isEscapedBackslash(text, index) {
+  let backslashes = 0;
+  for (let cursor = index - 1; cursor >= 0 && text[cursor] === "\\"; cursor -= 1) {
+    backslashes += 1;
+  }
+  return backslashes % 2 === 1;
+}
+
+function escapePyMySqlLiteralPercents(sql) {
+  let output = "";
+
+  for (let index = 0; index < sql.length; index += 1) {
+    const char = sql[index];
+    if (char !== "%") {
+      output += char;
+      continue;
+    }
+
+    const next = sql[index + 1];
+    if (next === "%" || next === "s") {
+      output += `%${next}`;
+      index += 1;
+      continue;
+    }
+
+    const namedPlaceholder = sql.slice(index).match(/^%\([A-Za-z_][A-Za-z0-9_]*\)s/);
+    if (namedPlaceholder) {
+      output += namedPlaceholder[0];
+      index += namedPlaceholder[0].length - 1;
+      continue;
+    }
+
+    output += "%%";
+  }
+
+  return output;
 }
 
 function isSqlKeyword(value) {

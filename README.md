@@ -14,18 +14,18 @@ AI 经常生成很长的部署、验证、Python `-c`、SQL、Docker、`kubectl`
 
 Generic line-break removers do not understand command structure. Replacing every newline with a space can still leave broken tokens such as `citation_l ist`, `2026- 06-12`, or `geo_ raw_responses`. Removing all whitespace can be worse: it can merge separate arguments and change command meaning.
 
-AI Command Fixer focuses on command-format repair. It keeps the MVP single-command-first, then repairs high-risk accidental breakpoints such as paths, dates, SQL identifiers, field names, filenames, backslash continuations, and complex shell blocks like `for ... do ... done`.
+AI Command Fixer focuses on command-format repair. It keeps the MVP single-command-first, then repairs high-risk accidental breakpoints such as paths, dates, SQL identifiers, field names, filenames, PyMySQL literal percent signs in `execute_query(...)` SQL strings, backslash continuations, and complex shell blocks like `for ... do ... done`.
 
 普通换行删除工具不了解命令结构。简单把所有换行替换成空格，仍可能留下 `citation_l ist`、`2026- 06-12`、`geo_ raw_responses` 这样的坏断点。直接删除所有空白更危险，可能把不同参数粘在一起，改变命令含义。
 
-AI Command Fixer 专注做命令格式修复。MVP 默认按一条长命令处理，并针对路径、日期、SQL 标识符、字段名、文件名、反斜杠续行，以及 `for ... do ... done` 这类复杂 shell block 的高风险断点做修复。
+AI Command Fixer 专注做命令格式修复。MVP 默认按一条长命令处理，并针对路径、日期、SQL 标识符、字段名、文件名、`execute_query(...)` SQL 字符串里的 PyMySQL 字面量百分号、反斜杠续行，以及 `for ... do ... done` 这类复杂 shell block 的高风险断点做修复。
 
 ## Core Capabilities / 核心能力
 
 - Paste a full AI response or one long command.
 - Treat input as one command by default, avoiding accidental splitting of long shell structures.
 - Repair accidental line breaks, backslash continuations, and spacing caused by chat UI wrapping.
-- Repair high-risk breakpoints in paths, dates, SQL identifiers, field names, filenames, Chinese paths/filenames/quoted values, and shell blocks.
+- Repair high-risk breakpoints in paths, dates, SQL identifiers, field names, filenames, Chinese paths/filenames/quoted values, PyMySQL SQL literal `%`, and shell blocks.
 - Show automatic repair points so you can review what changed.
 - Copy with the per-command copy button or **Copy all**.
 - Optionally stash repaired commands locally with an editable short title.
@@ -37,7 +37,7 @@ AI Command Fixer 专注做命令格式修复。MVP 默认按一条长命令处�
 - 支持粘贴整段 AI 回复或一条长命令。
 - 默认按一条命令处理，避免长 shell 结构被误拆。
 - 修复聊天界面造成的意外折行、反斜杠续行和多余空白。
-- 支持修复路径、日期、SQL 标识符、字段名、文件名、中文路径/文件名/引号内参数值和 shell block 中的高风险断点。
+- 支持修复路径、日期、SQL 标识符、字段名、文件名、中文路径/文件名/引号内参数值、PyMySQL SQL 字面量 `%` 和 shell block 中的高风险断点。
 - 展示自动修复点，方便人工核对。
 - 支持单条复制按钮和“复制全部”。
 - 可选把修复结果暂存在当前浏览器本地，并自动生成可编辑短标题。
@@ -74,6 +74,7 @@ AI Command Fixer 完全在浏览器本地运行。它不会上传命令，也不
 
 - AI-generated one-line commands that were visually wrapped by a chat interface.
 - Python `-c` commands containing long SQL strings.
+- PyMySQL `execute_query(...)` SQL strings where a literal `LIKE '%'` pattern needs `%%` escaping in the command text.
 - Commands with broken file paths, filenames, dates, identifiers, or field names.
 - Commands with Chinese paths, filenames, quoted names, or SQL string values broken by real newlines.
 - Shell commands with backslash continuations.

@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-07-03 - PyMySQL literal percent repair
+
+### Added
+
+- Added a `pymysql-percent` repair point for Python `-c` commands that call `db.execute_query(...)` with SQL strings containing literal `%`.
+- Added regression coverage for the reported `LIKE 'deep_anji_20260703_daily_%'` failure, plus counterexamples for `%s` placeholders, params tuple values, and already escaped `%%`.
+
+### Changed
+
+- Repair metadata now labels this review item as “PyMySQL 百分号” and explains that SQL literal `%` was escaped without changing `%s` placeholders.
+- Static asset query strings were refreshed to avoid stale browser resources.
+
 ## 2026-07-02 - Cron entry folding support
 
 ### Added

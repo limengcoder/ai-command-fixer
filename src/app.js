@@ -330,6 +330,11 @@ function getRepairMeta(repair) {
       label: "SQL 片段",
       help: "已修复 SQL 字符串内的疑似断点，建议核对字段名和表名。"
     },
+    "pymysql-percent": {
+      group: "review",
+      label: "PyMySQL 百分号",
+      help: "已转义 SQL 字符串中的字面量 `%`，避免被 PyMySQL 当作格式化占位符；`%s` 占位符不会被改动。"
+    },
     "inferred-token": {
       group: "review",
       label: "推测修复",

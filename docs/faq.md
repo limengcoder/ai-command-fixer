@@ -40,7 +40,7 @@ Here-doc structures such as `cat <<EOF ... EOF` are intentionally multi-line. Fl
 
 ### Does it support Python `-c` and SQL?
 
-Yes, the MVP is designed around real failures such as Python `-c` commands with long SQL strings. It can repair high-confidence breaks in dates, SQL identifiers, field names, filenames, paths, Chinese paths/filenames, and Chinese quoted values broken by real newlines.
+Yes, the MVP is designed around real failures such as Python `-c` commands with long SQL strings. It can repair high-confidence breaks in dates, SQL identifiers, field names, filenames, paths, Chinese paths/filenames, and Chinese quoted values broken by real newlines. For PyMySQL-style `execute_query(...)` calls, it also escapes literal `%` inside the SQL string while preserving `%s` placeholders and params tuple values.
 
 ### Why do I still need to review repair points?
 

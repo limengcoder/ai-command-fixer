@@ -30,6 +30,7 @@ npm test
 - P1：移除 macOS zsh 风格提示符，例如 `wangxb@bogon magneto %`。
 - P1：只修复高置信的同一行 token 双空格，例如 `citation_l  ist`，不误修 SQL 可读性空格。
 - P1：SQL 查询字符串中的标识符折断会修复，例如 `t.trig ⏎ gered_by`、`batch ⏎ _code`、`r. ⏎ question_id`。
+- P1：Python `-c` 中 `db.execute_query(...)` 的 SQL 字符串会转义 PyMySQL 字面量 `%`，同时保留 `%s` 占位符、已有 `%%` 和 params tuple 中的 `%`。
 - P1：Python 字符串/列表内字段名真实换行会修复，例如 `citation_l ⏎ ist`。
 - P0：本地暂存存储契约，使用 `ai-command-fixer.localStash.v1`，只保存修复后的完整命令、可编辑短标题和 `id` / `createdAt` / `expiresAt`。
 - P0：默认修复不会创建暂存数据；主动暂存才写入 localStorage。
@@ -234,3 +235,16 @@ echo | openssl s_client -showcerts -connect gitea.mstudios.cn:443 -servername gi
 - 命令保留 `echo | openssl s_client`、`2>/dev/null | sed -n` 和 `&& update-ca-certificates`。
 - 重定向路径修复为 `/usr/local/share/ca-certificates/gitea-mstudios-cn.crt`。
 - 不出现 `ca- certificates` 或 `ca- ⏎ certificates` 之类的断裂残留。
+
+### 用例 11：PyMySQL execute_query 字面量百分号
+
+输入：
+
+cd /home/magneto/app/geo && /home/venvs/geo/bin/python -c "from dotenv import load_dotenv; load_dotenv('.env'); from models.database import get_db; db=get_db(); rows=db.execute_query(\"SELECT batch_code, platform_name, COUNT(*) raw_cnt, COUNT(DISTINCT question_id) questions, SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) completed_cnt FROM geo_raw_responses r JOIN geo_customers c ON c.id=r.customer_id WHERE c.customer_code='deep_anji' AND r.stat_date='2026-07-03' AND r.batch_code LIKE 'deep_anji_20260703_daily_%' GROUP BY batch_code, platform_name ORDER BY batch_code, platform_name\"); [print(r) for r in rows]"
+
+预期重点：
+
+- `LIKE 'deep_anji_20260703_daily_%'` 修复为 `LIKE 'deep_anji_20260703_daily_%%'`。
+- 修复点显示为“PyMySQL 百分号”或等价提示，并归入“建议核对”。
+- `execute_query("... LIKE %s", ("deep_anji_20260703_daily_%",))` 这类参数化写法不改变 `%s`，也不改变 params tuple 中的 `%`。
+- 已经写成 `LIKE 'foo%%'` 的 SQL 不会变成 `LIKE 'foo%%%%'`。
