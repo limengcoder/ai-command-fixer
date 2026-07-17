@@ -27,6 +27,7 @@ npm test
 - P1：修复路径/文件名中下划线或点号附近的折断，例如 `jingdong_ ⏎ 20260609...xlsx`。
 - P1：修复中文路径/文件名真实换行断点，例如 `/home/报告/华东- ⏎ 六月.csv`。
 - P1：修复引号内中文参数值或 SQL 字符串值真实换行断点，例如 `"上海 ⏎ 门店"`，但不合并普通英文词间空格。
+- P1：修复 CLI 参数值中连字符后的真实换行断点，例如 `--workers geo- ⏎ daily-analysis-worker`，但不合并普通命令输出或说明文字中的同形态片段。
 - P1：移除 macOS zsh 风格提示符，例如 `wangxb@bogon magneto %`。
 - P1：只修复高置信的同一行 token 双空格，例如 `citation_l  ist`，不误修 SQL 可读性空格。
 - P1：SQL 查询字符串中的标识符折断会修复，例如 `t.trig ⏎ gered_by`、`batch ⏎ _code`、`r. ⏎ question_id`。
@@ -248,3 +249,16 @@ cd /home/magneto/app/geo && /home/venvs/geo/bin/python -c "from dotenv import lo
 - 修复点显示为“PyMySQL 百分号”或等价提示，并归入“建议核对”。
 - `execute_query("... LIKE %s", ("deep_anji_20260703_daily_%",))` 这类参数化写法不改变 `%s`，也不改变 params tuple 中的 `%`。
 - 已经写成 `LIKE 'foo%%'` 的 SQL 不会变成 `LIKE 'foo%%%%'`。
+
+### 用例 12：CLI 参数值连字符后断开
+
+输入：
+
+cd /home/magneto && git pull --ff-only origin feature/geo_project_dynamic && cd /home/magneto/app/geo && /home/venvs/geo/bin/python scripts/check_geo_workers.py --workers geo-
+  daily-analysis-worker --restart-all
+
+预期重点：
+
+- `--workers geo- ⏎ daily-analysis-worker` 修复为 `--workers geo-daily-analysis-worker`。
+- 自动修复点显示为“命令参数值断点”或等价提示，并建议人工核对。
+- 普通 `echo geo- ⏎ daily-analysis-worker` 不会被同一规则误合并。

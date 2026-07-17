@@ -1,6 +1,6 @@
-import { parseCommands } from "./command-parser.js?v=cron-entry-folding-20260702";
-import { copyText } from "./clipboard.js?v=cron-entry-folding-20260702";
-import { EXAMPLE_INPUT } from "./examples.js?v=cron-entry-folding-20260702";
+import { parseCommands } from "./command-parser.js?v=cli-option-value-20260717";
+import { copyText } from "./clipboard.js?v=cli-option-value-20260717";
+import { EXAMPLE_INPUT } from "./examples.js?v=cli-option-value-20260717";
 import {
   addLocalStash,
   clearLocalStash,
@@ -9,7 +9,7 @@ import {
   loadLocalStash,
   STASH_TTL_OPTIONS,
   updateLocalStashTitle
-} from "./local-stash.js?v=cron-entry-folding-20260702";
+} from "./local-stash.js?v=cli-option-value-20260717";
 import {
   canEditResult,
   canStashResult,
@@ -20,8 +20,8 @@ import {
   getResultStashText,
   restoreResultAutoFixedText,
   updateResultCurrentText
-} from "./result-state.js?v=cron-entry-folding-20260702";
-import { clearPreferences, loadPreferences, savePreferences } from "./storage.js?v=cron-entry-folding-20260702";
+} from "./result-state.js?v=cli-option-value-20260717";
+import { clearPreferences, loadPreferences, savePreferences } from "./storage.js?v=cli-option-value-20260717";
 
 const elements = {
   input: document.querySelector("#inputText"),
@@ -319,6 +319,11 @@ function getRepairMeta(repair) {
       group: "auto",
       label: "命令参数名断点",
       help: "识别为 CLI 长选项名被换行打断，已合并连字符两侧内容。"
+    },
+    "option-value": {
+      group: "review",
+      label: "命令参数值断点",
+      help: "识别为 CLI 参数值在连字符后被真实换行打断，已合并为连续参数值。"
     },
     token: {
       group: "auto",

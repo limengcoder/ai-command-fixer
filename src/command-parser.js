@@ -306,7 +306,7 @@ function buildNotes(stats, original, fixed) {
   if (stats.removedContinuations > 0) notes.push(`移除 ${stats.removedContinuations} 处反斜杠续行。`);
   if (stats.removedPrompts > 0) notes.push(`移除 ${stats.removedPrompts} 处终端提示符。`);
   if (stats.normalizedWhitespace > 0) notes.push(`归一 ${stats.normalizedWhitespace} 处多余空白。`);
-  if (stats.repairedBrokenTokens > 0) notes.push(`修复 ${stats.repairedBrokenTokens} 处日期、路径、字段名、文件名、中文参数值或命令参数名断点。`);
+  if (stats.repairedBrokenTokens > 0) notes.push(`修复 ${stats.repairedBrokenTokens} 处日期、路径、字段名、文件名、中文参数值、命令参数名或参数值断点。`);
   if (stats.repairedPyMySqlPercents > 0) notes.push(`转义 ${stats.repairedPyMySqlPercents} 处 PyMySQL SQL 字符串字面量百分号。`);
   if (notes.length === 0 && original === fixed) notes.push("未发现需要修复的折行。");
   return notes;
@@ -680,6 +680,7 @@ function repairBrokenTokenWhitespace(text, stats, repairs) {
   output = replaceAndTrack(output, new RegExp(`\\b(\\d{4})-\\s*${marker}\\s*(\\d{2})-\\s*(\\d{2})\\b`, "g"), "$1-$2-$3", "date", stats, repairs);
   output = replaceAndTrack(output, new RegExp(`\\b(\\d{4})-(\\d{2})-\\s*${marker}\\s*(\\d{2})\\b`, "g"), "$1-$2-$3", "date", stats, repairs);
   output = repairCliLongOptionBreaks(output, stats, repairs);
+  output = repairCliOptionValueHyphenBreaks(output, stats, repairs);
   output = repairQuotedSqlLikeSegments(output, stats, repairs);
   output = repairPyMySqlExecuteQueryPercents(output, stats, repairs);
   output = repairQuotedPathLikeSegments(output, stats, repairs);
@@ -712,6 +713,24 @@ function repairCliLongOptionBreaks(text, stats, repairs) {
       after: repaired
     });
     return `${boundary}${repaired}`;
+  });
+}
+
+function repairCliOptionValueHyphenBreaks(text, stats, repairs) {
+  const marker = JOIN_MARK;
+  const valueChar = String.raw`[\p{L}\p{N}._~+@%\-]`;
+  const valueStart = String.raw`[\p{L}\p{N}_]`;
+  const pattern = new RegExp(`(^|[\\s;&|()])(--[A-Za-z][A-Za-z0-9-]*)(=|\\s+)(${valueStart}${valueChar}*-)\\s*${marker}\\s*(${valueStart}[\\p{L}\\p{N}._~+@%\\-]*)(?=$|[\\s"';&|()<>])`, "gu");
+
+  return text.replace(pattern, (match, boundary, option, separator, left, right) => {
+    const repaired = `${left}${right}`;
+    stats.repairedBrokenTokens += 1;
+    repairs.push({
+      type: "option-value",
+      before: visibleJoin(`${left} ${JOIN_MARK} ${right}`),
+      after: repaired
+    });
+    return `${boundary}${option}${separator}${repaired}`;
   });
 }
 

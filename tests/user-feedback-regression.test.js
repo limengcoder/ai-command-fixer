@@ -142,3 +142,40 @@ test("feedback: does not double-escape existing PyMySQL literal percent escapes"
   assert.doesNotMatch(fixed, /foo%%%%/);
   assert.equal(result.commands[0].repairs.some((repair) => repair.type === "pymysql-percent"), false);
 });
+
+test("feedback: repairs folded hyphenated CLI option value", () => {
+  const input = `cd /home/magneto && git pull --ff-only origin feature/geo_project_dynamic && cd /home/magneto/app/geo && /home/venvs/geo/bin/python scripts/check_geo_workers.py --workers geo-
+  daily-analysis-worker --restart-all`;
+
+  const result = parseCommands(input);
+  const fixed = result.commands[0]?.fixed ?? "";
+
+  assert.equal(result.commands.length, 1);
+  assert.match(fixed, /--workers geo-daily-analysis-worker --restart-all/);
+  assert.doesNotMatch(fixed, /--workers geo-\s+daily-analysis-worker/);
+  assert.ok(result.commands[0].repairs.some((repair) => repair.type === "option-value"));
+});
+
+test("feedback: does not merge hyphenated words outside CLI option value context", () => {
+  const input = `echo geo-
+  daily-analysis-worker`;
+
+  const result = parseCommands(input);
+  const fixed = result.commands[0]?.fixed ?? "";
+
+  assert.equal(result.commands.length, 1);
+  assert.equal(fixed, "echo geo- daily-analysis-worker");
+  assert.equal(result.commands[0].repairs.some((repair) => repair.type === "option-value"), false);
+});
+
+test("feedback: does not merge folded option value into the next CLI option", () => {
+  const input = `python script.py --name geo-
+  --restart-all`;
+
+  const result = parseCommands(input);
+  const fixed = result.commands[0]?.fixed ?? "";
+
+  assert.equal(result.commands.length, 1);
+  assert.equal(fixed, "python script.py --name geo- --restart-all");
+  assert.equal(result.commands[0].repairs.some((repair) => repair.type === "option-value"), false);
+});

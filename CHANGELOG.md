@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-07-17 - CLI option value hyphen repair
+
+### Added
+
+- Added an `option-value` repair point for CLI parameter values split after a hyphen, such as `--workers geo- ⏎ daily-analysis-worker`.
+- Added regression coverage for the reported worker restart command and a counterexample that must not merge ordinary `echo geo- ⏎ daily...` text.
+
+### Changed
+
+- Repair notes now mention CLI parameter value breakpoints.
+- Static asset query strings were refreshed consistently across the page entry and module imports to avoid stale browser resources.
+
 ## 2026-07-03 - PyMySQL literal percent repair
 
 ### Added
